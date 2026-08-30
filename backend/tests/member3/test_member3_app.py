@@ -59,6 +59,7 @@ class Member3AppTests(unittest.TestCase):
             "/api/v1/member3/guardian/process",
             "/api/v1/member3/health",
             "/api/v1/member3/safety/evaluate",
+            "/api/v1/member3/caregivers",
         }
         self.assertTrue(expected.issubset(paths))
 
