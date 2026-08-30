@@ -102,7 +102,11 @@ def build_service_container() -> Member3ServiceContainer:
     insights = InsightService(InMemoryInsightRepository())
     alerts = AlertService(InMemoryAlertRepository())
     notifications = NotificationService(InMemoryNotificationRepository())
-    emergency = EmergencyWorkflowService(InMemoryEmergencyRepository())
+    caregivers = CaregiverService()
+    emergency = EmergencyWorkflowService(
+        InMemoryEmergencyRepository(),
+        caregiver_validator=caregivers.is_active,
+    )
     explanation = ExplanationService()
     conversations = ConversationService(
         explanation_service=explanation,
@@ -128,7 +132,7 @@ def build_service_container() -> Member3ServiceContainer:
         conversations=conversations,
         data_controls=data_controls,
         safety=SafetyEvaluationService(),
-        caregivers=CaregiverService(),
+        caregivers=caregivers,
         guardian=guardian,
     )
 

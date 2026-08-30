@@ -101,20 +101,34 @@ class EmergencyWorkflowService:
         self,
         repository: InMemoryEmergencyRepository | None = None,
         clock: Callable[[], datetime] | None = None,
+        caregiver_validator: Callable[[str, str], bool] | None = None,
     ) -> None:
         self._repository = repository or InMemoryEmergencyRepository()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._caregiver_validator = caregiver_validator
 
     def start(self, request: EmergencyStartRequest) -> EmergencyWorkflowRecord:
         existing = self._repository.get_by_alert(request.user_id, request.alert_id)
         if existing is not None:
             return existing
         now = self._utc(self._clock())
+        caregiver_contact_id = request.caregiver_contact_id
+        caregiver_note = None
+        if (
+            caregiver_contact_id is not None
+            and self._caregiver_validator is not None
+            and not self._caregiver_validator(request.user_id, caregiver_contact_id)
+        ):
+            caregiver_contact_id = None
+            caregiver_note = "Unapproved caregiver reference was ignored"
         audit = EmergencyAuditEvent(
             sequence=1,
             event="workflow_started",
             actor_id="system",
-            note="Emergency escalation received from upstream safety engine",
+            note=(
+                "Emergency escalation received from upstream safety engine"
+                + (f"; {caregiver_note}" if caregiver_note else "")
+            ),
             occurred_at=now,
         )
         record = EmergencyWorkflowRecord(
@@ -125,7 +139,7 @@ class EmergencyWorkflowService:
             safety_action=request.safety_action,
             safety_reason=request.safety_reason,
             evidence=tuple(request.evidence),
-            caregiver_contact_id=request.caregiver_contact_id,
+            caregiver_contact_id=caregiver_contact_id,
             urgent_instruction=URGENT_INSTRUCTION,
             external_action_performed=False,
             audit_events=(audit,),

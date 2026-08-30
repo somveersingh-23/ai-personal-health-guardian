@@ -4,6 +4,18 @@ from fastapi.testclient import TestClient
 from app.api.member3.caregivers import get_caregiver_service, router
 from app.schemas.member3.caregivers import CaregiverDecision, CaregiverDecisionRequest, CaregiverLinkCreate, CaregiverLinkStatus
 from app.services.member3.guardian.caregiver_service import CaregiverAuthorizationError, CaregiverService, InvalidCaregiverTransitionError
+from app.services.member3.guardian.emergency_service import EmergencyWorkflowService
+from app.schemas.member3.emergency import EmergencyStartRequest
+from ml.safety import SafetyAction
+
+
+def emergency_request(**updates):
+    values = dict(user_id="u1", alert_id="alert-1",
+                  safety_action=SafetyAction.EMERGENCY_ESCALATION,
+                  safety_reason="Confirmed severe symptoms", evidence=["severe symptom"],
+                  caregiver_contact_id="c1")
+    values.update(updates)
+    return EmergencyStartRequest(**values)
 
 
 class CaregiverTests(unittest.TestCase):
@@ -27,6 +39,14 @@ class CaregiverTests(unittest.TestCase):
     def test_list_user_scoped(self):
         self.create(); self.service.create(CaregiverLinkCreate(user_id="u2", caregiver_user_ref="c2", relationship_label="Friend"))
         self.assertEqual(self.service.list_for_user("u1").count, 1)
+    def test_emergency_keeps_only_active_caregiver_reference(self):
+        link = self.create()
+        emergency = EmergencyWorkflowService(caregiver_validator=self.service.is_active)
+        pending = emergency.start(emergency_request())
+        self.assertIsNone(pending.caregiver_contact_id)
+        link = self.service.decide(link.link_id, CaregiverDecisionRequest(decision="accept", actor_user_ref="c1"))
+        active = emergency.start(emergency_request(alert_id="alert-2"))
+        self.assertEqual(active.caregiver_contact_id, "c1")
 
 
 class CaregiverApiTests(unittest.TestCase):
