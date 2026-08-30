@@ -49,6 +49,17 @@ def _parse_chunk(raw: dict, source_hint: str) -> KnowledgeChunk:
             f"Record in {source_hint!r} is missing fields: {sorted(missing)}"
         )
     try:
+        safety_tags = raw["safety_tags"]
+        keywords = raw["keywords"]
+        if not isinstance(safety_tags, list):
+            raise ValueError("safety_tags must be a JSON array of strings")
+        if not isinstance(keywords, list):
+            raise ValueError("keywords must be a JSON array of strings")
+        if not all(isinstance(value, str) for value in safety_tags):
+            raise ValueError("safety_tags must contain only strings")
+        if not all(isinstance(value, str) for value in keywords):
+            raise ValueError("keywords must contain only strings")
+
         reviewed_at = date.fromisoformat(raw["reviewed_at"])
         expires_on_raw = raw.get("expires_on")
         expires_on = date.fromisoformat(expires_on_raw) if expires_on_raw else None
@@ -65,8 +76,8 @@ def _parse_chunk(raw: dict, source_hint: str) -> KnowledgeChunk:
             language=_normalise_whitespace(str(raw["language"])),
             reviewed_at=reviewed_at,
             review_status=review_status,
-            safety_tags=tuple(str(t).strip() for t in raw["safety_tags"]),
-            keywords=tuple(str(k).strip().lower() for k in raw["keywords"]),
+            safety_tags=tuple(safety_tags),
+            keywords=tuple(keywords),
             version=_normalise_whitespace(str(raw["version"])),
             expires_on=expires_on,
         )

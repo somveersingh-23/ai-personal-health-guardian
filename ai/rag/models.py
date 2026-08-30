@@ -6,7 +6,6 @@ Only ``approved`` and non-expired chunks may be retrieved.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
@@ -26,6 +25,15 @@ def _require_nonempty(value: str, label: str) -> str:
     if not stripped:
         raise ValueError(f"{label} must not be empty or whitespace-only")
     return stripped
+
+
+def _normalise_string_tuple(values: tuple[str, ...], label: str) -> tuple[str, ...]:
+    if not isinstance(values, tuple):
+        raise ValueError(f"{label} must be a tuple of strings")
+    normalised = tuple(_require_nonempty(value, label) for value in values)
+    if not normalised:
+        raise ValueError(f"{label} must contain at least one value")
+    return normalised
 
 
 @dataclass(frozen=True)
@@ -64,7 +72,27 @@ class KnowledgeChunk:
             ("language", self.language),
             ("version", self.version),
         ):
-            _require_nonempty(value, label)
+            object.__setattr__(self, label, _require_nonempty(value, label))
+
+        object.__setattr__(
+            self,
+            "safety_tags",
+            _normalise_string_tuple(self.safety_tags, "safety_tags"),
+        )
+        object.__setattr__(
+            self,
+            "keywords",
+            tuple(
+                value.lower()
+                for value in _normalise_string_tuple(self.keywords, "keywords")
+            ),
+        )
+        if self.source_url is not None:
+            object.__setattr__(
+                self,
+                "source_url",
+                _require_nonempty(self.source_url, "source_url"),
+            )
 
     def is_usable(self, today: Optional[date] = None) -> bool:
         """Return True only if status is approved and not expired."""

@@ -1,7 +1,7 @@
 # Member 3 Knowledge Base Policy
 
 ## Who may approve content
-Only designated clinical reviewers and product managers may approve content for the Member 3 RAG knowledge base.
+During prototype development, a project-designated reviewer may approve clearly labelled prototype guidance. Any content intended for real-user medical or clinical use must receive review by a suitably qualified clinical professional before release.
 
 ## Accepted source types
 - Peer-reviewed medical guidelines

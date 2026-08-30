@@ -23,7 +23,7 @@ from app.services.member3.guardian.retrieval_service import (
 
 # Default knowledge-base path (relative to the project root)
 _DEFAULT_KB_PATH = (
-    Path(__file__).parent.parent.parent.parent.parent.parent
+    Path(__file__).resolve().parents[4]
     / "ai" / "knowledge_base" / "member3" / "health_topics.jsonl"
 )
 

@@ -67,6 +67,18 @@ class RetrievalService:
         max_passage_chars: int = _MAX_PASSAGE_CHARS,
         max_total_chars: int = _MAX_TOTAL_CONTEXT_CHARS,
     ) -> None:
+        if (
+            isinstance(max_passage_chars, bool)
+            or not isinstance(max_passage_chars, int)
+            or max_passage_chars < 2
+        ):
+            raise ValueError("max_passage_chars must be an integer of at least 2")
+        if (
+            isinstance(max_total_chars, bool)
+            or not isinstance(max_total_chars, int)
+            or max_total_chars < 1
+        ):
+            raise ValueError("max_total_chars must be a positive integer")
         self._kb_paths = list(knowledge_base_paths)
         self._max_passage_chars = max_passage_chars
         self._max_total_chars = max_total_chars
@@ -95,11 +107,10 @@ class RetrievalService:
         retriever = self._get_retriever()
 
         try:
-            topic_filter = request.topics[0] if request.topics else None
             raw_records: list[RetrievalRecord] = retriever.retrieve(
                 query=request.question,
                 top_k=request.top_k,
-                topic_filter=topic_filter,
+                topic_filter=request.topics,
             )
         except ValueError as exc:
             raise InvalidRetrievalRequestError(str(exc)) from exc
@@ -135,7 +146,7 @@ class RetrievalService:
 
             # Enforce per-passage limit
             if len(passage) > self._max_passage_chars:
-                passage = passage[: self._max_passage_chars] + "…"
+                passage = passage[: self._max_passage_chars - 1] + "…"
                 limitations.append(
                     f"Passage for '{record.chunk.title}' was truncated to "
                     f"{self._max_passage_chars} characters."

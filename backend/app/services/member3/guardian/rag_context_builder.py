@@ -129,15 +129,17 @@ class RagContextBuilder:
                 break
             total_chars += len(sanitized)
 
+            clean_title = _strip_control_chars(result.title)
+            clean_source_name = _strip_control_chars(result.source_name)
             passages.append((
-                _strip_control_chars(result.title),
+                clean_title,
                 sanitized,
-                _strip_control_chars(result.source_name),
+                clean_source_name,
             ))
 
             # Citation: title + source_name (never raw URLs in citations)
             citations.append(
-                f"{result.title} — {result.source_name}"
+                f"{clean_title} — {clean_source_name}"
             )
 
         return RagContextBlock(

@@ -88,7 +88,7 @@ class RetrievalResult(BaseModel):
     source_name: str
     source_url: Optional[str] = None
     reviewed_at: str
-    score: float
+    score: float = Field(ge=0)
 
     @field_validator("score", mode="before")
     @classmethod

@@ -147,7 +147,7 @@ class LocalKeywordRetriever:
         self,
         query: str,
         top_k: int = _DEFAULT_TOP_K,
-        topic_filter: Optional[str] = None,
+        topic_filter: Optional[str | Sequence[str]] = None,
     ) -> list[RetrievalRecord]:
         """Return the top-k most relevant approved chunks for the query.
 
@@ -180,10 +180,17 @@ class LocalKeywordRetriever:
 
         candidates = self._chunks
         if topic_filter is not None:
-            topic_filter = topic_filter.strip().lower()
+            raw_topics = [topic_filter] if isinstance(topic_filter, str) else list(topic_filter)
+            topics = {
+                topic.strip().lower()
+                for topic in raw_topics
+                if isinstance(topic, str) and topic.strip()
+            }
+            if not topics:
+                return []
             candidates = tuple(
                 c for c in candidates
-                if c.topic.lower() == topic_filter
+                if c.topic.lower() in topics
             )
 
         scored: list[tuple[float, str, str, KnowledgeChunk]] = []
