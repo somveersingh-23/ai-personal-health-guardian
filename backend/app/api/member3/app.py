@@ -22,6 +22,10 @@ from app.api.member3.emergency import (
     get_emergency_service,
     router as emergency_router,
 )
+from app.api.member3.conversations import (
+    get_conversation_service,
+    router as conversations_router,
+)
 from app.api.member3.guardian import (
     get_guardian_service,
     router as guardian_router,
@@ -46,6 +50,10 @@ from app.services.member3.guardian.emergency_service import (
     EmergencyWorkflowService,
     InMemoryEmergencyRepository,
 )
+from app.services.member3.guardian.conversation_service import (
+    ConversationService,
+    InMemoryConversationRepository,
+)
 from app.services.member3.guardian.explanation_service import ExplanationService
 from app.services.member3.guardian.insight_service import (
     InMemoryInsightRepository,
@@ -67,6 +75,7 @@ class Member3ServiceContainer:
     alerts: AlertService
     notifications: NotificationService
     emergency: EmergencyWorkflowService
+    conversations: ConversationService
     guardian: GuardianOrchestrationService
 
 
@@ -76,6 +85,11 @@ def build_service_container() -> Member3ServiceContainer:
     alerts = AlertService(InMemoryAlertRepository())
     notifications = NotificationService(InMemoryNotificationRepository())
     emergency = EmergencyWorkflowService(InMemoryEmergencyRepository())
+    explanation = ExplanationService()
+    conversations = ConversationService(
+        explanation_service=explanation,
+        repository=InMemoryConversationRepository(),
+    )
     guardian = GuardianOrchestrationService(
         insight_service=insights,
         alert_service=alerts,
@@ -83,12 +97,13 @@ def build_service_container() -> Member3ServiceContainer:
         emergency_service=emergency,
     )
     return Member3ServiceContainer(
-        explanation=ExplanationService(),
+        explanation=explanation,
         retrieval=get_retrieval_service(),
         insights=insights,
         alerts=alerts,
         notifications=notifications,
         emergency=emergency,
+        conversations=conversations,
         guardian=guardian,
     )
 
@@ -114,6 +129,7 @@ def create_member3_app(
         alerts_router,
         notifications_router,
         emergency_router,
+        conversations_router,
         guardian_router,
     ):
         app.include_router(router)
@@ -124,6 +140,7 @@ def create_member3_app(
     app.dependency_overrides[get_alert_service] = lambda: services.alerts
     app.dependency_overrides[get_notification_service] = lambda: services.notifications
     app.dependency_overrides[get_emergency_service] = lambda: services.emergency
+    app.dependency_overrides[get_conversation_service] = lambda: services.conversations
     app.dependency_overrides[get_guardian_service] = lambda: services.guardian
 
     app.state.member3_services = services
