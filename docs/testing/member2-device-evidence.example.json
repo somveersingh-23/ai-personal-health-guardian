@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "records": [
+    {
+      "test_id": "android14-pixel-watch-permission-revocation",
+      "platform": "Android",
+      "os_version": "14",
+      "manufacturer": "Google",
+      "model": "replace-with-tested-phone-and-watch",
+      "source": "Health Connect",
+      "scenario": "Permission revoked between preflight and paged read",
+      "app_build": "replace-with-git-commit-and-version",
+      "tested_at": "replace-with-ISO-8601-timestamp",
+      "result": "pending",
+      "evidence_reference": "replace-with-private-redacted-log-or-test-report-reference",
+      "operational_metrics": {
+        "elapsed_seconds": null,
+        "records_processed": null,
+        "network_bytes": null,
+        "battery_delta_percent": null,
+        "duplicate_count": null,
+        "abstention_count": null
+      },
+      "notes": "Never place raw health values, tokens, participant identifiers, waveforms, or frames here."
+    }
+  ]
+}

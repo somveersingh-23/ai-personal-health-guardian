@@ -9,7 +9,6 @@ from app.schemas.member1.health_profile import (
     HealthProfileResponse,
 )
 
-
 router = APIRouter(
     prefix="/api/v1/member1/health-profile",
     tags=["Member 1 - Health Profile"],
