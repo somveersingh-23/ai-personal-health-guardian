@@ -229,8 +229,10 @@ class TestExplainRequestValidation(unittest.TestCase):
         self.assertEqual(req.locale, "en")
 
     def test_explicit_locale_preserved(self):
-        req = _make_request(locale="fr")
-        self.assertEqual(req.locale, "fr")
+        # "en" is the only supported locale; an unsupported value is normalised
+        # to "en" at schema level (see TestRegressionLocale for exhaustive coverage).
+        req = _make_request(locale="en")
+        self.assertEqual(req.locale, "en")
 
 
 # ---------------------------------------------------------------------------
@@ -393,34 +395,37 @@ class TestEvidenceIntegrity(unittest.TestCase):
         self.assertNotIn("blood_pressure", resp.answer)
         self.assertNotIn("blood pressure", resp.answer)
 
-    def test_blank_metric_items_are_trimmed(self):
-        evidence = [
+    def test_whitespace_only_metric_rejected_at_schema(self):
+        """Whitespace-only metric names are now rejected at schema validation."""
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
             EvidenceItem(
-                metric="   ",  # blank — should be removed
+                metric="   ",
                 current_value=1.0,
                 baseline_value=1.0,
                 unit="units",
                 direction="stable",
                 confidence=0.8,
                 signal_quality=0.8,
-            ),
-            EvidenceItem(
-                metric="heart_rate",
-                current_value=72.0,
-                baseline_value=72.0,
-                unit="bpm",
-                direction="stable",
-                confidence=0.9,
-                signal_quality=0.9,
-            ),
-        ]
-        req = _make_request(evidence=evidence)
-        resp = self.service.explain(req)
-        self.assertNotIn("   ", resp.evidence_used)
-        self.assertIn("heart_rate", resp.evidence_used)
+            )
 
-    def test_all_blank_evidence_raises_insufficient_error(self):
-        evidence = [
+    def test_metric_is_stripped_of_surrounding_whitespace(self):
+        """Metric names with surrounding whitespace are stripped and accepted."""
+        item = EvidenceItem(
+            metric="  heart_rate  ",
+            current_value=72.0,
+            baseline_value=72.0,
+            unit="bpm",
+            direction="stable",
+            confidence=0.9,
+            signal_quality=0.9,
+        )
+        self.assertEqual(item.metric, "heart_rate")
+
+    def test_all_blank_evidence_raises_validation_error_at_schema(self):
+        """All-whitespace metric raises ValidationError before reaching the service."""
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
             EvidenceItem(
                 metric="  ",
                 current_value=1.0,
@@ -429,11 +434,7 @@ class TestEvidenceIntegrity(unittest.TestCase):
                 direction="stable",
                 confidence=0.8,
                 signal_quality=0.8,
-            ),
-        ]
-        req = _make_request(evidence=evidence)
-        with self.assertRaises(InsufficientEvidenceError):
-            self.service.explain(req)
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -638,6 +639,320 @@ class TestProviderProtocol(unittest.TestCase):
         resp = service.explain(_make_request())
         self.assertTrue(resp.answer.strip())
         mock_provider.generate.assert_called_once()
+
+
+# ===========================================================================
+# REGRESSION TESTS — Review findings
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Fix 1: Reject whitespace-only user_id, question, safety_action, safety_reason
+# ---------------------------------------------------------------------------
+
+class TestRegressionWhitespaceRejection(unittest.TestCase):
+    """Verify whitespace-only values are rejected for every request string field."""
+
+    def _make_good_evidence(self):
+        return [EvidenceItem(
+            metric="heart_rate", current_value=90.0, baseline_value=72.0,
+            unit="bpm", direction="elevated", confidence=0.9, signal_quality=0.9,
+        )]
+
+    def test_whitespace_only_user_id_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            ExplainRequest(
+                user_id="   ",
+                question="Why is my heart rate high?",
+                evidence=self._make_good_evidence(),
+                safety_action="observe",
+                safety_reason="Small deviation detected.",
+            )
+        self.assertIn("user_id", str(ctx.exception))
+
+    def test_whitespace_only_question_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            ExplainRequest(
+                user_id="user-1",
+                question="   \t  ",
+                evidence=self._make_good_evidence(),
+                safety_action="observe",
+                safety_reason="Small deviation detected.",
+            )
+        self.assertIn("question", str(ctx.exception))
+
+    def test_whitespace_only_safety_action_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            ExplainRequest(
+                user_id="user-1",
+                question="What is happening?",
+                evidence=self._make_good_evidence(),
+                safety_action="\n\n",
+                safety_reason="Small deviation detected.",
+            )
+        self.assertIn("safety_action", str(ctx.exception))
+
+    def test_whitespace_only_safety_reason_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            ExplainRequest(
+                user_id="user-1",
+                question="What is happening?",
+                evidence=self._make_good_evidence(),
+                safety_action="observe",
+                safety_reason="  ",
+            )
+        self.assertIn("safety_reason", str(ctx.exception))
+
+    def test_valid_strings_with_surrounding_whitespace_are_stripped(self):
+        """Surrounding whitespace on valid strings is stripped, not rejected."""
+        req = ExplainRequest(
+            user_id="  user-1  ",
+            question="  Why is my HR high?  ",
+            evidence=self._make_good_evidence(),
+            safety_action="  observe  ",
+            safety_reason="  Small deviation.  ",
+        )
+        self.assertEqual(req.user_id, "user-1")
+        self.assertEqual(req.question, "Why is my HR high?")
+        self.assertEqual(req.safety_action, "observe")
+        self.assertEqual(req.safety_reason, "Small deviation.")
+
+    def test_newline_only_user_id_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            ExplainRequest(
+                user_id="\n",
+                question="Hello",
+                evidence=self._make_good_evidence(),
+                safety_action="observe",
+                safety_reason="Reason.",
+            )
+
+    def test_tab_only_question_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            ExplainRequest(
+                user_id="u1",
+                question="\t",
+                evidence=self._make_good_evidence(),
+                safety_action="observe",
+                safety_reason="Reason.",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: Strip and validate metric, unit, direction
+# ---------------------------------------------------------------------------
+
+class TestRegressionEvidenceStringFields(unittest.TestCase):
+    """Verify metric, unit, and direction are stripped and blank values rejected."""
+
+    def _base(self, **overrides):
+        defaults = dict(
+            metric="heart_rate", current_value=72.0, baseline_value=72.0,
+            unit="bpm", direction="stable", confidence=0.9, signal_quality=0.9,
+        )
+        defaults.update(overrides)
+        return EvidenceItem(**defaults)
+
+    # -- Whitespace-only rejection ------------------------------------------
+
+    def test_whitespace_only_metric_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self._base(metric="   ")
+
+    def test_whitespace_only_unit_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self._base(unit="   ")
+
+    def test_whitespace_only_direction_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self._base(direction="   ")
+
+    def test_newline_only_metric_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self._base(metric="\n")
+
+    def test_tab_only_unit_rejected(self):
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            self._base(unit="\t")
+
+    # -- Stripping ----------------------------------------------------------
+
+    def test_metric_leading_trailing_whitespace_stripped(self):
+        item = self._base(metric="  spo2  ")
+        self.assertEqual(item.metric, "spo2")
+
+    def test_unit_leading_trailing_whitespace_stripped(self):
+        item = self._base(unit="  %  ")
+        self.assertEqual(item.unit, "%")
+
+    def test_direction_leading_trailing_whitespace_stripped(self):
+        item = self._base(direction="  elevated  ")
+        self.assertEqual(item.direction, "elevated")
+
+    def test_all_three_stripped_simultaneously(self):
+        item = self._base(metric=" hrv ", unit=" ms ", direction=" decreased ")
+        self.assertEqual(item.metric, "hrv")
+        self.assertEqual(item.unit, "ms")
+        self.assertEqual(item.direction, "decreased")
+
+    # -- Round-trip: stripped values are reflected in service response ------
+
+    def test_stripped_metric_appears_correctly_in_evidence_used(self):
+        item = self._base(metric="  spo2  ")  # stripped → "spo2"
+        req = ExplainRequest(
+            user_id="u1",
+            question="How is my oxygen?",
+            evidence=[item],
+            safety_action="observe",
+            safety_reason="Monitoring.",
+        )
+        service = ExplanationService()
+        resp = service.explain(req)
+        self.assertIn("spo2", resp.evidence_used)
+        self.assertNotIn("  spo2  ", resp.evidence_used)
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: Locale validation and fallback to "en"
+# ---------------------------------------------------------------------------
+
+class TestRegressionLocale(unittest.TestCase):
+    """Verify locale is validated and unsupported values fall back to 'en'."""
+
+    def _good_evidence(self):
+        return [EvidenceItem(
+            metric="hr", current_value=80.0, baseline_value=70.0,
+            unit="bpm", direction="elevated", confidence=0.9, signal_quality=0.9,
+        )]
+
+    def _req(self, locale=None):
+        kw = dict(
+            user_id="u1", question="How am I?",
+            evidence=self._good_evidence(),
+            safety_action="observe", safety_reason="Monitoring.",
+        )
+        if locale is not None:
+            kw["locale"] = locale
+        return ExplainRequest(**kw)
+
+    def test_supported_locale_en_preserved(self):
+        self.assertEqual(self._req(locale="en").locale, "en")
+
+    def test_omitted_locale_defaults_to_en(self):
+        self.assertEqual(self._req().locale, "en")
+
+    def test_unsupported_locale_fr_normalised_to_en(self):
+        self.assertEqual(self._req(locale="fr").locale, "en")
+
+    def test_unsupported_locale_de_normalised_to_en(self):
+        self.assertEqual(self._req(locale="de").locale, "en")
+
+    def test_unsupported_locale_zh_normalised_to_en(self):
+        self.assertEqual(self._req(locale="zh-CN").locale, "en")
+
+    def test_unsupported_locale_empty_string_normalised_to_en(self):
+        self.assertEqual(self._req(locale="").locale, "en")
+
+    def test_unsupported_locale_whitespace_normalised_to_en(self):
+        self.assertEqual(self._req(locale="   ").locale, "en")
+
+    def test_unsupported_locale_still_produces_valid_response(self):
+        """A caller passing an unsupported locale must still receive an answer."""
+        req = self._req(locale="xx-FANTASY")
+        resp = ExplanationService().explain(req)
+        self.assertTrue(resp.answer.strip())
+        self.assertEqual(resp.locale if hasattr(resp, "locale") else "en", "en")
+
+    def test_supported_locales_constant_contains_en(self):
+        from app.schemas.member3.assistant import SUPPORTED_LOCALES
+        self.assertIn("en", SUPPORTED_LOCALES)
+
+    def test_locale_normalised_to_en_before_service_call(self):
+        """Service receives "en" even when caller sends an unsupported tag."""
+        req = self._req(locale="pt-BR")
+        self.assertEqual(req.locale, "en")
+
+
+# ---------------------------------------------------------------------------
+# Fix 4: System-prompt wording — "upstream deterministic safety engine"
+# ---------------------------------------------------------------------------
+
+class TestRegressionSystemPromptWording(unittest.TestCase):
+    """Verify the system prompt no longer says 'certified rule-based engine'."""
+
+    def test_certified_wording_absent(self):
+        from ai.prompts.system_prompt import build_system_prompt
+        prompt = build_system_prompt("observe")
+        self.assertNotIn("certified rule-based engine", prompt)
+
+    def test_correct_wording_present(self):
+        from ai.prompts.system_prompt import build_system_prompt
+        prompt = build_system_prompt("observe")
+        self.assertIn("upstream deterministic safety engine", prompt)
+
+    def test_wording_present_for_every_action(self):
+        from ai.prompts.system_prompt import build_system_prompt
+        for action in SafetyAction:
+            with self.subTest(action=action):
+                prompt = build_system_prompt(action.value)
+                self.assertIn("upstream deterministic safety engine", prompt)
+                self.assertNotIn("certified", prompt)
+
+    def test_safety_action_value_embedded_in_prompt(self):
+        from ai.prompts.system_prompt import build_system_prompt
+        prompt = build_system_prompt("emergency_escalation")
+        self.assertIn("emergency_escalation", prompt)
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: conftest.py lives inside Member 3-owned paths only
+# ---------------------------------------------------------------------------
+
+class TestRegressionConftestLocation(unittest.TestCase):
+    """Confirm the path-setup conftest.py is inside backend/tests/member3/."""
+
+    def test_member3_conftest_exists(self):
+        from pathlib import Path
+        conftest = (
+            Path(__file__).parent / "conftest.py"
+        )
+        self.assertTrue(conftest.exists(), "backend/tests/member3/conftest.py must exist")
+
+    def test_repo_root_conftest_does_not_exist(self):
+        """The repo-root conftest.py created in the first commit must be gone."""
+        from pathlib import Path
+        # Walk up from this file: member3/ → tests/ → backend/ → repo root
+        repo_root = Path(__file__).parent.parent.parent.parent
+        root_conftest = repo_root / "conftest.py"
+        self.assertFalse(
+            root_conftest.exists(),
+            "conftest.py must not exist at the repository root — it must live "
+            "inside backend/tests/member3/ (a Member 3-owned path).",
+        )
+
+    def test_sys_path_contains_backend(self):
+        """The member3 conftest must have added backend/ to sys.path."""
+        import sys
+        from pathlib import Path
+        backend = str(Path(__file__).parent.parent.parent.resolve())
+        self.assertIn(backend, sys.path)
+
+    def test_sys_path_contains_repo_root(self):
+        """The member3 conftest must have added the repo root to sys.path."""
+        import sys
+        from pathlib import Path
+        repo_root = str(Path(__file__).parent.parent.parent.parent.resolve())
+        self.assertIn(repo_root, sys.path)
 
 
 if __name__ == "__main__":

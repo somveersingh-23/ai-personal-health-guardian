@@ -27,9 +27,8 @@ ABSOLUTE CONSTRAINTS — follow these without exception:
      "you have…".
 
 3. NEVER CHANGE THE SAFETY ACTION.
-   - The safety action ({safety_action}) has been determined by a certified
-     rule-based engine.  You must echo it faithfully.  Never upgrade or
-     downgrade it.
+   - The safety action ({safety_action}) has been determined by the upstream deterministic safety engine.
+     You must echo it faithfully.  Never upgrade or downgrade it.
 
 4. NEVER INVENT MEASUREMENTS.
    - If a metric is not in the structured context, do not mention it.

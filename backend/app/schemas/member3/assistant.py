@@ -4,6 +4,14 @@ All numeric confidence and signal-quality values are validated as finite
 numbers strictly in the closed interval [0, 1].  Non-finite values (NaN,
 ±Infinity) and out-of-range values are rejected at the schema boundary
 before reaching any service or provider.
+
+String fields that carry meaningful content (user_id, question,
+safety_action, safety_reason, metric, unit, direction) are stripped of
+surrounding whitespace and rejected if they are blank after stripping.
+
+Locale is validated against a fixed allow-list; any unsupported value is
+silently normalised to ``"en"`` so callers are never blocked by a locale
+mismatch.
 """
 
 from __future__ import annotations
@@ -17,11 +25,40 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
-# Custom types
+# Supported locales
+# ---------------------------------------------------------------------------
+
+#: BCP-47 tags that the assistant actively supports.  Every other value is
+#: normalised to the fallback locale ``"en"`` at schema validation time.
+SUPPORTED_LOCALES: frozenset[str] = frozenset({"en"})
+
+_LOCALE_FALLBACK = "en"
+
+
+# ---------------------------------------------------------------------------
+# Helper: strip-and-reject-blank validator factory
+# ---------------------------------------------------------------------------
+
+def _nonempty_str(label: str):
+    """Return a validator that strips whitespace and rejects blank strings."""
+
+    def _validate(value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f"{label} must be a string")
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(f"{label} must not be empty or whitespace-only")
+        return stripped
+
+    return _validate
+
+
+# ---------------------------------------------------------------------------
+# Helper: [0, 1] finite-float validator factory
 # ---------------------------------------------------------------------------
 
 def _finite_fraction(label: str):
-    """Return a Pydantic field validator factory for a [0, 1] finite float."""
+    """Return a validator for a finite float in the closed interval [0, 1]."""
 
     def _validate(value: float) -> float:
         if isinstance(value, bool):
@@ -44,9 +81,12 @@ def _finite_fraction(label: str):
 class EvidenceItem(BaseModel):
     """A single structured health measurement supplied by the caller.
 
-    All numeric fields except ``current_value`` and ``baseline_value``
-    must be finite numbers in [0, 1].  ``current_value`` and
-    ``baseline_value`` may be any finite float.
+    String fields ``metric``, ``unit``, and ``direction`` are stripped of
+    surrounding whitespace and rejected if they are blank after stripping.
+
+    Numeric ``confidence`` and ``signal_quality`` must be finite numbers in
+    the closed interval [0, 1].  ``current_value`` and ``baseline_value``
+    may be any finite float.
     """
 
     metric: Annotated[str, Field(min_length=1, description="Name of the health metric")]
@@ -57,6 +97,15 @@ class EvidenceItem(BaseModel):
     confidence: float = Field(description="Model confidence in [0, 1]")
     signal_quality: float = Field(description="Sensor signal quality in [0, 1]")
     timestamp: Optional[datetime] = Field(default=None, description="When the measurement was taken")
+
+    # -- String validators ---------------------------------------------------
+
+    @field_validator("metric", "unit", "direction", mode="before")
+    @classmethod
+    def _strip_and_reject_blank_string_fields(cls, value: str, info) -> str:  # noqa: ANN001
+        return _nonempty_str(info.field_name)(value)
+
+    # -- Numeric validators --------------------------------------------------
 
     @field_validator("current_value", "baseline_value", mode="before")
     @classmethod
@@ -89,6 +138,13 @@ class EvidenceItem(BaseModel):
 class ExplainRequest(BaseModel):
     """Request body for ``POST /api/v1/member3/assistant/explain``.
 
+    String fields ``user_id``, ``question``, ``safety_action``, and
+    ``safety_reason`` are stripped of surrounding whitespace and rejected if
+    they are blank after stripping.
+
+    ``locale`` is validated against ``SUPPORTED_LOCALES``; any unsupported
+    value is silently normalised to ``"en"``.
+
     ``conversation_id`` is auto-generated (UUID4) when omitted so the
     caller can track multi-turn conversations without managing IDs itself.
     """
@@ -115,9 +171,35 @@ class ExplainRequest(BaseModel):
         description="Existing conversation ID; auto-generated when omitted",
     )
     locale: str = Field(
-        default="en",
-        description="BCP-47 locale tag; falls back to 'en' if unsupported",
+        default=_LOCALE_FALLBACK,
+        description=(
+            "BCP-47 locale tag. Supported: "
+            + ", ".join(sorted(SUPPORTED_LOCALES))
+            + ". Unsupported values fall back to 'en'."
+        ),
     )
+
+    # -- String validators ---------------------------------------------------
+
+    @field_validator("user_id", "question", "safety_action", "safety_reason", mode="before")
+    @classmethod
+    def _strip_and_reject_blank_request_strings(cls, value: str, info) -> str:  # noqa: ANN001
+        return _nonempty_str(info.field_name)(value)
+
+    # -- Locale normalisation ------------------------------------------------
+
+    @field_validator("locale", mode="before")
+    @classmethod
+    def _normalise_locale(cls, value: str) -> str:
+        """Normalise unsupported locales to the fallback 'en'."""
+        if not isinstance(value, str):
+            return _LOCALE_FALLBACK
+        normalised = value.strip()
+        if normalised not in SUPPORTED_LOCALES:
+            return _LOCALE_FALLBACK
+        return normalised
+
+    # -- Model-level post-init -----------------------------------------------
 
     @model_validator(mode="after")
     def _generate_conversation_id(self) -> "ExplainRequest":
