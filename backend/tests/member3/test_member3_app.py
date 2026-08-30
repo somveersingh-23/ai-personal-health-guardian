@@ -46,7 +46,9 @@ class Member3AppTests(unittest.TestCase):
         self.assertEqual(response.json()["persistence"], "in_memory")
 
     def test_expected_member3_routes_are_registered(self):
-        paths = {route.path for route in self.app.routes if hasattr(route, "path")}
+        # FastAPI 0.141 lazily represents included routers in ``app.routes``;
+        # the generated OpenAPI contract is the stable public route inventory.
+        paths = set(self.app.openapi()["paths"])
         expected = {
             "/api/v1/member3/assistant/explain",
             "/api/v1/member3/rag/retrieve",
