@@ -30,6 +30,10 @@ from app.api.member3.data_controls import (
     get_data_control_service,
     router as data_controls_router,
 )
+from app.api.member3.safety import (
+    get_safety_service,
+    router as safety_router,
+)
 from app.api.member3.guardian import (
     get_guardian_service,
     router as guardian_router,
@@ -59,6 +63,7 @@ from app.services.member3.guardian.conversation_service import (
     InMemoryConversationRepository,
 )
 from app.services.member3.guardian.data_control_service import DataControlService
+from app.services.member3.guardian.safety_service import SafetyEvaluationService
 from app.services.member3.guardian.explanation_service import ExplanationService
 from app.services.member3.guardian.insight_service import (
     InMemoryInsightRepository,
@@ -82,6 +87,7 @@ class Member3ServiceContainer:
     emergency: EmergencyWorkflowService
     conversations: ConversationService
     data_controls: DataControlService
+    safety: SafetyEvaluationService
     guardian: GuardianOrchestrationService
 
 
@@ -115,6 +121,7 @@ def build_service_container() -> Member3ServiceContainer:
         emergency=emergency,
         conversations=conversations,
         data_controls=data_controls,
+        safety=SafetyEvaluationService(),
         guardian=guardian,
     )
 
@@ -142,6 +149,7 @@ def create_member3_app(
         emergency_router,
         conversations_router,
         data_controls_router,
+        safety_router,
         guardian_router,
     ):
         app.include_router(router)
@@ -154,6 +162,7 @@ def create_member3_app(
     app.dependency_overrides[get_emergency_service] = lambda: services.emergency
     app.dependency_overrides[get_conversation_service] = lambda: services.conversations
     app.dependency_overrides[get_data_control_service] = lambda: services.data_controls
+    app.dependency_overrides[get_safety_service] = lambda: services.safety
     app.dependency_overrides[get_guardian_service] = lambda: services.guardian
 
     app.state.member3_services = services
