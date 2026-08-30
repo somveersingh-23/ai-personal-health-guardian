@@ -61,6 +61,14 @@ class InMemoryEmergencyRepository:
             records = [item for item in self._records.values() if item.user_id == user_id]
         return sorted(records, key=lambda item: (item.created_at, item.workflow_id), reverse=True)
 
+    def delete_for_user(self, user_id: str) -> int:
+        with self._lock:
+            ids = [key for key, item in self._records.items() if item.user_id == user_id]
+            for key in ids:
+                item = self._records.pop(key)
+                self._alert_index.pop((item.user_id, item.alert_id), None)
+            return len(ids)
+
 
 _NEXT_STATE = {
     EmergencyCommand.CONFIRM: {
@@ -177,6 +185,9 @@ class EmergencyWorkflowService:
             raise ValueError("user_id must not be blank")
         records = self._repository.list_for_user(cleaned)
         return EmergencyListResponse(user_id=cleaned, workflows=records, count=len(records))
+
+    def purge_user(self, user_id: str) -> int:
+        return self._repository.delete_for_user(" ".join(user_id.split()))
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

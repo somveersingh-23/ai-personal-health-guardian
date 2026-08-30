@@ -60,6 +60,14 @@ class InMemoryNotificationRepository:
             records = [item for item in self._records.values() if item.user_id == user_id]
         return sorted(records, key=lambda item: (item.created_at, item.notification_id), reverse=True)
 
+    def delete_for_user(self, user_id: str) -> int:
+        with self._lock:
+            ids = [key for key, item in self._records.items() if item.user_id == user_id]
+            for key in ids:
+                item = self._records.pop(key)
+                self._source_index.pop((item.user_id, item.source_event_id, item.channel), None)
+            return len(ids)
+
 
 class NotificationService:
     MAX_ATTEMPTS = 3
@@ -205,6 +213,9 @@ class NotificationService:
         return NotificationListResponse(
             user_id=cleaned, notifications=records, count=len(records)
         )
+
+    def purge_user(self, user_id: str) -> int:
+        return self._repository.delete_for_user(" ".join(user_id.split()))
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

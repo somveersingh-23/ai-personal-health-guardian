@@ -123,6 +123,14 @@ class GuardianOrchestrationService:
             self._processed[key] = response
             return response
 
+    def purge_user_cache(self, user_id: str) -> int:
+        cleaned = " ".join(user_id.split())
+        with self._lock:
+            keys = [key for key in self._processed if key[0] == cleaned]
+            for key in keys:
+                self._processed.pop(key)
+            return len(keys)
+
     @staticmethod
     def _utc(value: datetime) -> datetime:
         if value.tzinfo is None:

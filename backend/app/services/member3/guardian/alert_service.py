@@ -62,6 +62,14 @@ class InMemoryAlertRepository:
             results = [item for item in self._alerts.values() if item.record.user_id == user_id]
         return sorted(results, key=lambda item: (item.record.created_at, item.record.alert_id), reverse=True)
 
+    def delete_for_user(self, user_id: str) -> int:
+        with self._lock:
+            ids = [key for key, item in self._alerts.items() if item.record.user_id == user_id]
+            for key in ids:
+                item = self._alerts.pop(key)
+                self._event_index.pop((item.record.user_id, item.record.event_id), None)
+            return len(ids)
+
 
 _PRIORITIES = {
     SafetyAction.SELF_CARE: AlertPriority.LOW,
@@ -179,6 +187,9 @@ class AlertService:
         )
         self._repository.save(replace(stored, record=updated))
         return updated
+
+    def purge_user(self, user_id: str) -> int:
+        return self._repository.delete_for_user(" ".join(user_id.split()))
 
     @staticmethod
     def _fingerprint(request: AlertEvaluationRequest) -> str:

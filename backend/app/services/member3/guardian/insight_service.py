@@ -56,6 +56,14 @@ class InMemoryInsightRepository:
             records = [record for record in self._records.values() if record.user_id == user_id]
         return sorted(records, key=lambda record: (record.created_at, record.insight_id), reverse=True)
 
+    def delete_for_user(self, user_id: str) -> int:
+        with self._lock:
+            ids = [key for key, record in self._records.items() if record.user_id == user_id]
+            for key in ids:
+                record = self._records.pop(key)
+                self._source_index.pop((record.user_id, record.source_event_id), None)
+            return len(ids)
+
 
 _SEVERITY = {
     SafetyAction.NORMAL: InsightSeverity.INFORMATIONAL,
@@ -142,6 +150,9 @@ class InsightService:
         )
         self._repository.save(updated)
         return updated
+
+    def purge_user(self, user_id: str) -> int:
+        return self._repository.delete_for_user(" ".join(user_id.split()))
 
     @staticmethod
     def _summary(request: InsightCreateRequest) -> str:

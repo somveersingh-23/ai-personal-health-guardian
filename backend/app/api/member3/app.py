@@ -26,6 +26,10 @@ from app.api.member3.conversations import (
     get_conversation_service,
     router as conversations_router,
 )
+from app.api.member3.data_controls import (
+    get_data_control_service,
+    router as data_controls_router,
+)
 from app.api.member3.guardian import (
     get_guardian_service,
     router as guardian_router,
@@ -54,6 +58,7 @@ from app.services.member3.guardian.conversation_service import (
     ConversationService,
     InMemoryConversationRepository,
 )
+from app.services.member3.guardian.data_control_service import DataControlService
 from app.services.member3.guardian.explanation_service import ExplanationService
 from app.services.member3.guardian.insight_service import (
     InMemoryInsightRepository,
@@ -76,6 +81,7 @@ class Member3ServiceContainer:
     notifications: NotificationService
     emergency: EmergencyWorkflowService
     conversations: ConversationService
+    data_controls: DataControlService
     guardian: GuardianOrchestrationService
 
 
@@ -96,6 +102,10 @@ def build_service_container() -> Member3ServiceContainer:
         notification_service=notifications,
         emergency_service=emergency,
     )
+    data_controls = DataControlService(
+        insights=insights, alerts=alerts, notifications=notifications,
+        emergency=emergency, conversations=conversations, guardian=guardian,
+    )
     return Member3ServiceContainer(
         explanation=explanation,
         retrieval=get_retrieval_service(),
@@ -104,6 +114,7 @@ def build_service_container() -> Member3ServiceContainer:
         notifications=notifications,
         emergency=emergency,
         conversations=conversations,
+        data_controls=data_controls,
         guardian=guardian,
     )
 
@@ -130,6 +141,7 @@ def create_member3_app(
         notifications_router,
         emergency_router,
         conversations_router,
+        data_controls_router,
         guardian_router,
     ):
         app.include_router(router)
@@ -141,6 +153,7 @@ def create_member3_app(
     app.dependency_overrides[get_notification_service] = lambda: services.notifications
     app.dependency_overrides[get_emergency_service] = lambda: services.emergency
     app.dependency_overrides[get_conversation_service] = lambda: services.conversations
+    app.dependency_overrides[get_data_control_service] = lambda: services.data_controls
     app.dependency_overrides[get_guardian_service] = lambda: services.guardian
 
     app.state.member3_services = services

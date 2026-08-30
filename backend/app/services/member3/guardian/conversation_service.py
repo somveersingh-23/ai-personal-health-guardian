@@ -58,6 +58,13 @@ class InMemoryConversationRepository:
             for turn in record.turns:
                 self._message_index.pop((record.user_id, turn.message_id), None)
 
+    def delete_for_user(self, user_id: str) -> int:
+        with self._lock:
+            ids = [key for key, item in self._records.items() if item.user_id == user_id]
+            for key in ids:
+                self.delete(key)
+            return len(ids)
+
 
 class ConversationService:
     def __init__(
@@ -123,6 +130,9 @@ class ConversationService:
         record = self._owned(conversation_id, user_id)
         self._repository.delete(record.conversation_id)
         return ConversationDeleteResponse(conversation_id=record.conversation_id, deleted=True)
+
+    def purge_user(self, user_id: str) -> int:
+        return self._repository.delete_for_user(_required(user_id, "user_id"))
 
     def _owned(self, conversation_id: str, user_id: str) -> ConversationRecord:
         record = self._repository.get(_required(conversation_id, "conversation_id"))
