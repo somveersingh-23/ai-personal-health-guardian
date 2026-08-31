@@ -37,6 +37,13 @@ def _decode(token: str) -> Member3Identity:
 
 
 async def require_member3_identity(request: Request) -> Member3Identity:
+    # Delivery providers authenticate the narrowly scoped callback with the
+    # fail-closed webhook secret in notifications.provider_callback. They do
+    # not possess an end-user JWT.
+    endpoint = request.scope.get("endpoint")
+    if getattr(endpoint, "__name__", "") == "provider_callback":
+        return Member3Identity("notification-provider")
+
     credentials: HTTPAuthorizationCredentials | None = await _bearer(request)
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token required")

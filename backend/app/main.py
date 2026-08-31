@@ -2,11 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.member1.health_profile import router as health_profile_router
+from app.api.member3.registration import register_member3_routers
 from app.database.base import Base
 from app.database.database import engine
-
 from app.models.member1.health_profile import HealthProfile
-from app.api.member1.health_profile import router as health_profile_router
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app = FastAPI(
 app.include_router(
     health_profile_router
 )
+register_member3_routers(app)
 
 
 @app.get("/")

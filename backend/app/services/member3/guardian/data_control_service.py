@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from app.schemas.member3.data_controls import Member3DataExport, Member3PurgeResponse
 from app.services.member3.guardian.alert_service import AlertService
+from app.services.member3.guardian.caregiver_service import CaregiverService
 from app.services.member3.guardian.conversation_service import ConversationService
 from app.services.member3.guardian.emergency_service import EmergencyWorkflowService
 from app.services.member3.guardian.insight_service import InsightService
@@ -12,11 +13,20 @@ from app.services.member3.guardian.orchestration_service import GuardianOrchestr
 
 
 class DataControlService:
-    def __init__(self, *, insights: InsightService, alerts: AlertService,
-                 notifications: NotificationService, emergency: EmergencyWorkflowService,
-                 conversations: ConversationService, guardian: GuardianOrchestrationService) -> None:
+    def __init__(
+        self,
+        *,
+        insights: InsightService,
+        alerts: AlertService,
+        notifications: NotificationService,
+        emergency: EmergencyWorkflowService,
+        conversations: ConversationService,
+        guardian: GuardianOrchestrationService,
+        caregivers: CaregiverService | None = None,
+    ) -> None:
         self.insights, self.alerts, self.notifications = insights, alerts, notifications
         self.emergency, self.conversations, self.guardian = emergency, conversations, guardian
+        self.caregivers = caregivers
 
     def export(self, user_id: str) -> Member3DataExport:
         user_id = _clean(user_id)
@@ -39,8 +49,17 @@ class DataControlService:
             "conversations": self.conversations.purge_user(user_id),
             "orchestration_cache": self.guardian.purge_user_cache(user_id),
         }
-        return Member3PurgeResponse(user_id=user_id, deleted_counts=counts,
-                                    total_deleted=sum(counts.values()), purged_at=datetime.now(timezone.utc))
+        if self.caregivers is not None:
+            counts["caregivers"] = self.caregivers.purge_user(user_id)
+        return Member3PurgeResponse(
+            user_id=user_id,
+            deleted_counts=counts,
+            total_deleted=sum(counts.values()),
+            purged_at=datetime.now(timezone.utc),
+        )
+
+    def purge_user_data(self, user_id: str) -> int:
+        return self.purge(user_id).total_deleted
 
 
 def _clean(value: str) -> str:

@@ -18,6 +18,28 @@ from app.services.member3.guardian.notification_service import NotificationServi
 from ml.safety import SafetyAction, SafetyEngine, SafetyInput
 
 
+class InMemoryGuardianOrchestrationRepository:
+    def __init__(self) -> None:
+        self._processed: dict[tuple[str, str], GuardianProcessResponse] = {}
+        self._lock = RLock()
+
+    def get(self, user_id: str, event_id: str) -> GuardianProcessResponse | None:
+        with self._lock:
+            return self._processed.get((user_id, event_id))
+
+    def save(self, record: GuardianProcessResponse) -> None:
+        with self._lock:
+            self._processed[(record.user_id, record.event_id)] = record
+
+    def delete_for_user(self, user_id: str) -> int:
+        cleaned = " ".join(user_id.split())
+        with self._lock:
+            keys = [key for key in self._processed if key[0] == cleaned]
+            for key in keys:
+                self._processed.pop(key)
+            return len(keys)
+
+
 class GuardianOrchestrationService:
     """Run the deterministic Member 3 product loop once per user event."""
 
@@ -29,6 +51,7 @@ class GuardianOrchestrationService:
         notification_service: NotificationService | None = None,
         emergency_service: EmergencyWorkflowService | None = None,
         clock: Callable[[], datetime] | None = None,
+        repository: InMemoryGuardianOrchestrationRepository | None = None,
     ) -> None:
         self._safety = safety_engine or SafetyEngine()
         self._insights = insight_service or InsightService()
@@ -36,13 +59,12 @@ class GuardianOrchestrationService:
         self._notifications = notification_service or NotificationService()
         self._emergency = emergency_service or EmergencyWorkflowService()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
-        self._processed: dict[tuple[str, str], GuardianProcessResponse] = {}
+        self._repository = repository or InMemoryGuardianOrchestrationRepository()
         self._lock = RLock()
 
     def process(self, request: GuardianProcessRequest) -> GuardianProcessResponse:
-        key = (request.user_id, request.event_id)
         with self._lock:
-            existing = self._processed.get(key)
+            existing = self._repository.get(request.user_id, request.event_id)
             if existing is not None:
                 return existing
 
@@ -120,16 +142,11 @@ class GuardianOrchestrationService:
                 emergency_workflow=emergency,
                 processed_at=self._utc(self._clock()),
             )
-            self._processed[key] = response
+            self._repository.save(response)
             return response
 
     def purge_user_cache(self, user_id: str) -> int:
-        cleaned = " ".join(user_id.split())
-        with self._lock:
-            keys = [key for key in self._processed if key[0] == cleaned]
-            for key in keys:
-                self._processed.pop(key)
-            return len(keys)
+        return self._repository.delete_for_user(user_id)
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

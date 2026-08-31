@@ -9,7 +9,19 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
-class Member3ApiClient(private val baseUrl: String) {
+interface Member3Gateway {
+    fun askAssistant(userId: String, question: String): String
+    fun listInsights(userId: String): List<HealthInsight>
+    fun listAlerts(userId: String): List<GuardianAlert>
+    fun listCaregivers(userId: String): List<Caregiver>
+    fun inviteCaregiver(userId: String, caregiverUserRef: String, relationshipLabel: String): Caregiver
+    fun startEmergency(userId: String, reason: String): EmergencyWorkflow
+}
+
+class Member3ApiClient(
+    private val baseUrl: String,
+    private val sessionManager: SessionManager? = null,
+) : Member3Gateway {
     private fun request(path: String, method: String = "GET", body: JSONObject? = null): JSONObject {
         val connection = URL("${baseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
         return try {
@@ -18,6 +30,11 @@ class Member3ApiClient(private val baseUrl: String) {
             connection.readTimeout = 12_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Content-Type", "application/json")
+            sessionManager?.token?.let { token ->
+                if (token.isNotBlank()) {
+                    connection.setRequestProperty("Authorization", "Bearer $token")
+                }
+            }
             body?.let {
                 connection.doOutput = true
                 connection.outputStream.bufferedWriter().use { writer -> writer.write(it.toString()) }
@@ -37,7 +54,7 @@ class Member3ApiClient(private val baseUrl: String) {
         }
     }
 
-    fun askAssistant(userId: String, question: String): String {
+    override fun askAssistant(userId: String, question: String): String {
         val latest = request("/api/v1/member3/insights?user_id=${encoded(userId)}")
             .arrayFrom("insights").optJSONObject(0)
             ?: return "I need a recent health insight before I can explain a personal change. Sync your health data and try again."
@@ -54,28 +71,56 @@ class Member3ApiClient(private val baseUrl: String) {
         return response.optString("answer", "No explanation returned")
     }
 
-    fun listInsights(userId: String): List<HealthInsight> {
+    override fun listInsights(userId: String): List<HealthInsight> {
         val response = request("/api/v1/member3/insights?user_id=${encoded(userId)}")
         return response.arrayFrom("insights", "items").mapObjects { item ->
-            HealthInsight(item.optString("insight_id", item.optString("id")), item.optString("title", "Health insight"), item.optString("summary", item.optString("message")), item.optString("status", "active"))
+            HealthInsight(
+                id = item.optString("insight_id", item.optString("id")),
+                title = item.optString("title", "Health insight"),
+                summary = item.optString("summary", item.optString("message")),
+                status = item.optString("status", "active"),
+            )
         }
     }
 
-    fun listAlerts(userId: String): List<GuardianAlert> {
+    override fun listAlerts(userId: String): List<GuardianAlert> {
         val response = request("/api/v1/member3/alerts?user_id=${encoded(userId)}")
         return response.arrayFrom("alerts", "items").mapObjects { item ->
-            GuardianAlert(item.optString("alert_id", item.optString("id")), item.optString("title", "Health alert"), item.optString("message"), item.optString("priority", "normal"), item.optString("status", "active"))
+            GuardianAlert(
+                id = item.optString("alert_id", item.optString("id")),
+                title = item.optString("title", "Health alert"),
+                message = item.optString("message"),
+                priority = item.optString("priority", "normal"),
+                status = item.optString("status", "active"),
+            )
         }
     }
 
-    fun listCaregivers(userId: String): List<Caregiver> {
+    override fun listCaregivers(userId: String): List<Caregiver> {
         val response = request("/api/v1/member3/caregivers?user_id=${encoded(userId)}")
         return response.arrayFrom("caregivers", "items", "links").mapObjects { item ->
-            Caregiver(item.optString("link_id", item.optString("id")), item.optString("relationship_label", item.optString("caregiver_user_ref", "Caregiver")), item.optString("status", "pending"))
+            Caregiver(
+                id = item.optString("link_id", item.optString("id")),
+                name = item.optString("relationship_label", item.optString("caregiver_user_ref", "Caregiver")),
+                status = item.optString("status", "pending"),
+            )
         }
     }
 
-    fun startEmergency(userId: String, reason: String): EmergencyWorkflow {
+    override fun inviteCaregiver(userId: String, caregiverUserRef: String, relationshipLabel: String): Caregiver {
+        val payload = JSONObject()
+            .put("user_id", userId)
+            .put("caregiver_user_ref", caregiverUserRef)
+            .put("relationship_label", relationshipLabel)
+        val response = request("/api/v1/member3/caregivers", "POST", payload)
+        return Caregiver(
+            id = response.optString("link_id", response.optString("id")),
+            name = response.optString("relationship_label", caregiverUserRef),
+            status = response.optString("status", "pending"),
+        )
+    }
+
+    override fun startEmergency(userId: String, reason: String): EmergencyWorkflow {
         val payload = JSONObject()
             .put("user_id", userId)
             .put("alert_id", "manual-${UUID.randomUUID()}")
@@ -83,7 +128,11 @@ class Member3ApiClient(private val baseUrl: String) {
             .put("safety_reason", reason)
             .put("evidence", JSONArray().put("User manually reported urgent symptoms: $reason"))
         val response = request("/api/v1/member3/emergency/workflows", "POST", payload)
-        return EmergencyWorkflow(response.optString("workflow_id", response.optString("id")), response.optString("state"), response.optString("urgent_instruction", "Confirm before contacting help"))
+        return EmergencyWorkflow(
+            id = response.optString("workflow_id", response.optString("id")),
+            status = response.optString("state", "initiated"),
+            nextAction = response.optString("urgent_instruction", "Confirm before contacting help"),
+        )
     }
 
     private fun safeError(payload: String): String = runCatching {

@@ -1,6 +1,10 @@
 """Member 3 notification intent and receipt API."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from __future__ import annotations
+
+import hmac
+import os
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.schemas.member3.notifications import (
     DeliveryReceiptRequest,
@@ -57,6 +61,27 @@ async def record_receipt(
     request: DeliveryReceiptRequest,
     service: NotificationService = Depends(get_notification_service),
 ) -> NotificationRecord:
+    return _handle(lambda: service.record_receipt(notification_id, request))
+
+
+@router.post("/{notification_id}/callback", response_model=NotificationRecord)
+async def provider_callback(
+    notification_id: str,
+    request: DeliveryReceiptRequest,
+    x_webhook_secret: str | None = Header(default=None, alias="X-Webhook-Secret"),
+    service: NotificationService = Depends(get_notification_service),
+) -> NotificationRecord:
+    expected = os.environ.get("MEMBER3_WEBHOOK_SECRET")
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification webhook authentication is not configured",
+        )
+    if not x_webhook_secret or not hmac.compare_digest(x_webhook_secret, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid webhook signature/secret",
+        )
     return _handle(lambda: service.record_receipt(notification_id, request))
 
 

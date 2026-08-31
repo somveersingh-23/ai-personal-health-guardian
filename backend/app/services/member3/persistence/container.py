@@ -19,7 +19,8 @@ from app.services.member3.guardian.notification_service import NotificationServi
 from app.services.member3.guardian.orchestration_service import GuardianOrchestrationService
 from app.services.member3.guardian.safety_service import SafetyEvaluationService
 from app.services.member3.persistence.repositories import (
-    SqlAlertRepository, SqlConversationRepository, SqlEmergencyRepository,
+    SqlAlertRepository, SqlCaregiverRepository, SqlConversationRepository,
+    SqlEmergencyRepository, SqlGuardianOrchestrationRepository,
     SqlInsightRepository, SqlNotificationRepository,
 )
 
@@ -40,16 +41,18 @@ def build_persistent_container(engine: Engine, *, create_schema: bool = False) -
     insights = InsightService(SqlInsightRepository(sessions))
     alerts = AlertService(SqlAlertRepository(sessions))
     notifications = NotificationService(SqlNotificationRepository(sessions))
-    caregivers = CaregiverService()
+    caregivers = CaregiverService(SqlCaregiverRepository(sessions))
     emergency = EmergencyWorkflowService(SqlEmergencyRepository(sessions), caregiver_validator=caregivers.is_active)
     conversations = ConversationService(explanation, SqlConversationRepository(sessions))
     guardian = GuardianOrchestrationService(
         insight_service=insights, alert_service=alerts,
         notification_service=notifications, emergency_service=emergency,
+        repository=SqlGuardianOrchestrationRepository(sessions),
     )
     data_controls = DataControlService(
         insights=insights, alerts=alerts, notifications=notifications,
         emergency=emergency, conversations=conversations, guardian=guardian,
+        caregivers=caregivers,
     )
     return Member3ServiceContainer(
         explanation=explanation, retrieval=get_retrieval_service(), insights=insights,

@@ -1,7 +1,7 @@
 # Member 3 AI Guardian — Assistant API
 
-**Module**: Member 3 · AI Guardian Assistant  
-**Endpoint**: `POST /api/v1/member3/assistant/explain`  
+**Module**: Member 3 · AI Guardian Assistant
+**Endpoint**: `POST /api/v1/member3/assistant/explain`
 **Branch**: `feature/m3-ai-assistant-api`
 
 ---
@@ -178,7 +178,7 @@ Expected output: all Member 3 tests pass (safety engine + assistant tests), no e
 
 ## Router Registration in `main.py`
 
-> **Note**: `main.py` is owned by Member 1. Do not edit it directly.  
+> **Note**: `main.py` is owned by Member 1. Do not edit it directly.
 > Provide this snippet to Member 1 for integration:
 
 ```python
