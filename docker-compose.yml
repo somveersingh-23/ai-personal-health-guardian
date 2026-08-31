@@ -1,0 +1,25 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: health_guardian_postgres
+
+    environment:
+      POSTGRES_DB: health_guardian
+      POSTGRES_USER: health_user
+      POSTGRES_PASSWORD: health_password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U health_user -d health_guardian"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

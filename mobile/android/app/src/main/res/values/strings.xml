@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Health Guardian Sensors</string>
+    <string name="sensor_title">Multimodal Sensor Intelligence</string>
+    <string name="wellness_disclaimer">Research/wellness signals only — not diagnosis or emergency monitoring.</string>
+    <string name="grant_required_access">Grant required Health Connect access</string>
+    <string name="grant_background_access">Optional: allow background reads</string>
+    <string name="grant_history_access">Optional: allow history beyond 30 days</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_in_progress">Synchronizing…</string>
+    <string name="sync_complete">Sync complete — upserts: %1$d, deletions: %2$d, revoked types: %3$d.</string>
+    <string name="sync_unavailable">Sync unavailable: %1$s</string>
+    <string name="pause_sync">Pause synchronization</string>
+    <string name="resume_sync">Resume synchronization</string>
+    <string name="disconnect_health_connect">Disconnect Health Connect</string>
+    <string name="disconnect_in_progress">Disconnecting Health Connect…</string>
+    <string name="disconnected_explanation">Health Connect disconnected. Permissions revoked, local sync tokens cleared, and background sync disabled. Android may require an app restart before the permission change appears in Health Connect. Server data is retained per user account policy.</string>
+    <string name="disconnect_partial_explanation">Local synchronization was stopped, but one or more disconnect steps could not be confirmed. Review access in Health Connect settings. Server data is retained per user account policy.</string>
+    <string name="background_schedule_error">Background synchronization could not be configured. Manual synchronization remains available.</string>
+    <string name="manage_health_connect">Manage/revoke Health Connect access</string>
+    <string name="open_camera_quality">Open camera capture-quality prototype</string>
+    <string name="read_privacy_rationale">Read health-data privacy rationale</string>
+    <string name="health_connect_update_required">Health Connect must be installed or updated.</string>
+    <string name="open_health_connect_store">Open Health Connect in Play Store</string>
+    <string name="health_connect_unavailable">Health Connect is unavailable on this device. Sensor sync stays disabled.</string>
+    <string name="permission_state_error">Could not read Health Connect permission state: %1$s</string>
+    <string name="access_granted">Required access granted.</string>
+    <string name="access_incomplete">Access incomplete.</string>
+    <string name="permission_state">%1$s Required data access: %2$d/%3$d. Background feature: %4$s. History feature: %5$s.</string>
+    <string name="available">available</string>
+    <string name="unsupported">unsupported</string>
+    <string name="camera_permission_denied">Camera permission denied. Capture is disabled.</string>
+    <string name="camera_quality_checking">Checking capture conditions… No diagnosis or vital-sign estimate is produced.</string>
+    <string name="privacy_rationale">Health data privacy\n\nThis research/wellness feature reads only the Health Connect data types shown in the permission dialog: heart rate, resting heart rate, HRV, oxygen saturation, respiratory rate, steps, sleep, active calories, and skin temperature when the device supports it.\n\nData is used to build time-aligned, non-diagnostic sensor features. It is sent only to the configured Health Guardian HTTPS backend after authentication. Camera frames never leave the device and are not stored; the camera prototype evaluates lighting, blur, clipping, and motion only.\n\nYou can deny any permission, pause synchronization, or revoke access in Health Connect at any time. The app does not sell health data, use it for advertising, or make emergency/medical decisions.\n\nThe project owner must replace this in-app disclosure with the reviewed public privacy-policy text and URL before Play distribution.</string>
+</resources>
