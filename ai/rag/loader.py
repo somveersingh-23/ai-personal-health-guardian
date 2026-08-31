@@ -51,14 +51,20 @@ def _parse_chunk(raw: dict, source_hint: str) -> KnowledgeChunk:
     try:
         safety_tags = raw["safety_tags"]
         keywords = raw["keywords"]
-        if not isinstance(safety_tags, list):
-            raise ValueError("safety_tags must be a JSON array of strings")
-        if not isinstance(keywords, list):
-            raise ValueError("keywords must be a JSON array of strings")
-        if not all(isinstance(value, str) for value in safety_tags):
-            raise ValueError("safety_tags must contain only strings")
-        if not all(isinstance(value, str) for value in keywords):
-            raise ValueError("keywords must contain only strings")
+        if isinstance(safety_tags, str) or not isinstance(safety_tags, list):
+            raise ValueError("safety_tags must be a JSON array of non-blank strings")
+        if isinstance(keywords, str) or not isinstance(keywords, list):
+            raise ValueError("keywords must be a JSON array of non-blank strings")
+        if not safety_tags:
+            raise ValueError("safety_tags must not be empty")
+        if not keywords:
+            raise ValueError("keywords must not be empty")
+        for idx, tag in enumerate(safety_tags):
+            if not isinstance(tag, str) or not tag.strip():
+                raise ValueError(f"safety_tags must contain only non-blank strings, invalid at index {idx}")
+        for idx, kw in enumerate(keywords):
+            if not isinstance(kw, str) or not kw.strip():
+                raise ValueError(f"keywords must contain only non-blank strings, invalid at index {idx}")
 
         reviewed_at = date.fromisoformat(raw["reviewed_at"])
         expires_on_raw = raw.get("expires_on")

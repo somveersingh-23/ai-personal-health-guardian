@@ -12,12 +12,13 @@ The API uses a deterministic, offline keyword-based retrieval mechanism. It does
 ### Request
 ```json
 {
-  "question": "How does sleep affect my heart rate?",
-  "topics": ["sleep_and_recovery"],
+  "question": "How does sleep and hydration affect my heart rate?",
+  "topics": ["sleep_and_recovery", "hydration"],
   "locale": "en",
   "top_k": 3
 }
 ```
+*Note*: When multiple topics are provided in `topics`, OR semantics are used (chunks matching any of the requested topics are candidates).
 
 ### Response
 ```json

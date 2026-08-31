@@ -21,19 +21,35 @@ class ReviewStatus(str, Enum):
 
 def _require_nonempty(value: str, label: str) -> str:
     """Strip and reject blank strings."""
-    stripped = value.strip() if isinstance(value, str) else ""
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    stripped = value.strip()
     if not stripped:
         raise ValueError(f"{label} must not be empty or whitespace-only")
     return stripped
 
 
-def _normalise_string_tuple(values: tuple[str, ...], label: str) -> tuple[str, ...]:
-    if not isinstance(values, tuple):
-        raise ValueError(f"{label} must be a tuple of strings")
-    normalised = tuple(_require_nonempty(value, label) for value in values)
-    if not normalised:
-        raise ValueError(f"{label} must contain at least one value")
-    return normalised
+def _normalise_string_collection(values: Sequence[str], label: str) -> tuple[str, ...]:
+    """Validate and strip collection of strings; reject strings or malformed collections."""
+    if isinstance(values, str) or not isinstance(values, (tuple, list)):
+        raise ValueError(
+            f"{label} must be a list or tuple of non-blank strings, not {type(values).__name__}"
+        )
+    if not values:
+        raise ValueError(f"{label} must contain at least one non-blank string")
+    normalised = []
+    for idx, item in enumerate(values):
+        if not isinstance(item, str):
+            raise ValueError(
+                f"Every item in {label} must be a string, got {type(item).__name__} at index {idx}"
+            )
+        stripped = item.strip()
+        if not stripped:
+            raise ValueError(
+                f"Items in {label} must not be empty or whitespace-only (index {idx})"
+            )
+        normalised.append(stripped)
+    return tuple(normalised)
 
 
 @dataclass(frozen=True)
@@ -77,14 +93,14 @@ class KnowledgeChunk:
         object.__setattr__(
             self,
             "safety_tags",
-            _normalise_string_tuple(self.safety_tags, "safety_tags"),
+            _normalise_string_collection(self.safety_tags, "safety_tags"),
         )
         object.__setattr__(
             self,
             "keywords",
             tuple(
                 value.lower()
-                for value in _normalise_string_tuple(self.keywords, "keywords")
+                for value in _normalise_string_collection(self.keywords, "keywords")
             ),
         )
         if self.source_url is not None:

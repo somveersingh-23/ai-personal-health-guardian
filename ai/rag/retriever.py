@@ -60,6 +60,16 @@ class RetrievalRecord:
     sanitized_content: str  # prompt-injection-sanitized version of content
     injection_flagged: bool = False
 
+    def __post_init__(self) -> None:
+        if isinstance(self.score, bool) or not isinstance(self.score, (int, float)):
+            raise ValueError("score must be a finite non-negative number")
+        val = float(self.score)
+        if not math.isfinite(val):
+            raise ValueError("score must be a finite number")
+        if val < 0.0:
+            raise ValueError("score must be non-negative")
+        object.__setattr__(self, "score", val)
+
 
 # ---------------------------------------------------------------------------
 # Injection detection patterns (structural check — not sole security boundary)

@@ -94,12 +94,15 @@ class RetrievalResult(BaseModel):
     @classmethod
     def _validate_score(cls, value: float) -> float:
         if isinstance(value, bool):
-            raise ValueError("score must be a finite number")
+            raise ValueError("score must be a finite non-negative number")
         if not isinstance(value, (int, float)):
+            raise ValueError("score must be a finite non-negative number")
+        val = float(value)
+        if not math.isfinite(val):
             raise ValueError("score must be a finite number")
-        if not math.isfinite(float(value)):
-            raise ValueError("score must be a finite number")
-        return float(value)
+        if val < 0.0:
+            raise ValueError("score must be non-negative")
+        return val
 
     @field_validator("document_id", "chunk_id", "title", "passage", "topic", "source_name", "reviewed_at", mode="before")
     @classmethod

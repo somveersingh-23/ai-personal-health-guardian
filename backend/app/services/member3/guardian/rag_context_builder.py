@@ -48,11 +48,11 @@ class RagContextBlock:
 # Control character removal
 # ---------------------------------------------------------------------------
 
-_CTRL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_CTRL_CHAR_PATTERN = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 
 def _strip_control_chars(text: str) -> str:
-    return _CTRL_CHAR_PATTERN.sub("", text)
+    return _CTRL_CHAR_PATTERN.sub("", text).strip()
 
 
 # ---------------------------------------------------------------------------

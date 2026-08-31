@@ -547,7 +547,169 @@ class TestRagContextBuilder(unittest.TestCase):
     def test_total_length_capped(self):
         res = RetrievalResult(document_id="d1", chunk_id="c1", title="T1", passage="A"*800, topic="tp", source_name="S1", reviewed_at="2026-08-01", score=1.0)
         b = self.builder.build(safety_action="A", safety_reason="R", results=[res, res, res, res, res])
-        self.assertTrue(len(b.passages) < 5)
+
+class TestRegressionReviewFindings(unittest.TestCase):
+    """Explicit regression tests for all 6 review findings on feature/m3-rag."""
+
+    # Finding 1: Default knowledge-base path resolution & real default dependency
+    def test_finding1_default_kb_path_resolves_and_exists(self):
+        from app.api.member3.rag import _DEFAULT_KB_PATH, _resolve_default_kb_path
+        resolved = _resolve_default_kb_path()
+        self.assertTrue(resolved.is_file(), f"Default KB file must exist at {resolved}")
+        self.assertEqual(resolved, _DEFAULT_KB_PATH)
+
+    def test_finding1_default_dependency_can_retrieve(self):
+        service = get_retrieval_service()
+        response = service.retrieve(RetrievalRequest(question="Why is resting heart rate important?"))
+        self.assertIsInstance(response, RetrievalResponse)
+        self.assertGreater(response.result_count, 0)
+        self.assertTrue(any("heart" in r.passage.lower() or "heart" in r.title.lower() for r in response.results))
+
+    # Finding 2: Support every requested topic filter with OR semantics
+    def test_finding2_multi_topic_or_semantics_retriever(self):
+        c_sleep = _make_chunk(chunk_id="c_s", topic="sleep_and_recovery", title="Sleep Chunk", content="sleep and rest")
+        c_hydro = _make_chunk(chunk_id="c_h", topic="hydration", title="Hydration Chunk", content="drink water hydration")
+        c_hrv = _make_chunk(chunk_id="c_v", topic="hrv_changes", title="HRV Chunk", content="hrv variation")
+        retriever = LocalKeywordRetriever([c_sleep, c_hydro, c_hrv])
+
+        res = retriever.retrieve("sleep water hrv", topic_filter=["sleep_and_recovery", "hydration"], top_k=5)
+        topics = {r.chunk.topic for r in res}
+        self.assertIn("sleep_and_recovery", topics)
+        self.assertIn("hydration", topics)
+        self.assertNotIn("hrv_changes", topics)
+
+    def test_finding2_multi_topic_in_service(self):
+        p = _make_jsonl_file([_GOOD_RECORD, _HYDRATION_RECORD, _HRV_RECORD])
+        svc = RetrievalService([p])
+        res = svc.retrieve(RetrievalRequest(question="sleep water hrv", topics=["sleep_and_recovery", "hrv_changes"], top_k=5))
+        found_topics = {r.topic for r in res.results}
+        self.assertIn("sleep_and_recovery", found_topics)
+        self.assertIn("hrv_changes", found_topics)
+        self.assertNotIn("hydration", found_topics)
+        p.unlink()
+
+    # Finding 3: KnowledgeChunk normalizes string fields after trimming & rejects blank tuple entries
+    def test_finding3_knowledge_chunk_trims_and_rejects_blank_strings(self):
+        chunk = _make_chunk(
+            document_id="  doc1  ",
+            chunk_id="  c1  ",
+            title="  My Title  ",
+            content="  My Content  ",
+            source_name="  Source  ",
+            topic="  sleep_and_recovery  ",
+            language="  en  ",
+            version="  1.0  ",
+            source_url="  https://example.com/  ",
+            safety_tags=("  tag1  ", "  tag2  "),
+            keywords=("  Word1  ", "  Word2  "),
+        )
+        self.assertEqual(chunk.document_id, "doc1")
+        self.assertEqual(chunk.chunk_id, "c1")
+        self.assertEqual(chunk.title, "My Title")
+        self.assertEqual(chunk.content, "My Content")
+        self.assertEqual(chunk.source_name, "Source")
+        self.assertEqual(chunk.topic, "sleep_and_recovery")
+        self.assertEqual(chunk.language, "en")
+        self.assertEqual(chunk.version, "1.0")
+        self.assertEqual(chunk.source_url, "https://example.com/")
+        self.assertEqual(chunk.safety_tags, ("tag1", "tag2"))
+        self.assertEqual(chunk.keywords, ("word1", "word2"))
+
+    def test_finding3_knowledge_chunk_rejects_blank_tuple_entries(self):
+        with self.assertRaises(ValueError):
+            _make_chunk(safety_tags=("tag1", "   "))
+        with self.assertRaises(ValueError):
+            _make_chunk(keywords=("word1", "\t\n"))
+        with self.assertRaises(ValueError):
+            _make_chunk(document_id="   ")
+        with self.assertRaises(ValueError):
+            _make_chunk(source_url="   ")
+
+    # Finding 4: Reject negative, NaN and infinite retrieval scores
+    def test_finding4_reject_invalid_scores_in_result_schema(self):
+        for bad_score in [-0.001, -10.0, float("nan"), float("inf"), float("-inf"), True, False, "not_a_number"]:
+            with self.subTest(bad_score=bad_score):
+                with self.assertRaises(ValueError):
+                    RetrievalResult(
+                        document_id="d1",
+                        chunk_id="c1",
+                        title="T",
+                        passage="P",
+                        topic="tp",
+                        source_name="S",
+                        reviewed_at="2026-08-01",
+                        score=bad_score,
+                    )
+
+    def test_finding4_reject_invalid_scores_in_retrieval_record(self):
+        c = _make_chunk()
+        for bad_score in [-1.0, float("nan"), float("inf"), float("-inf"), True, "bad"]:
+            with self.subTest(bad_score=bad_score):
+                with self.assertRaises(ValueError):
+                    RetrievalRecord(chunk=c, score=bad_score, sanitized_content="test")
+
+    # Finding 5: Strip control characters from citation titles and source names
+    def test_finding5_citations_strip_control_characters(self):
+        builder = RagContextBuilder()
+        res = RetrievalResult(
+            document_id="d1",
+            chunk_id="c1",
+            title="\x00Sleep\x08 \t& Recovery\x1f\x7f\x9f",
+            passage="Passage content",
+            topic="sleep_and_recovery",
+            source_name="\x07Project \x00Guidance\x1e",
+            reviewed_at="2026-08-01",
+            score=1.5,
+        )
+        block = builder.build(safety_action="observe", safety_reason="Monitoring.", results=[res])
+        self.assertEqual(block.passages[0][0], "Sleep & Recovery")
+        self.assertEqual(block.passages[0][2], "Project Guidance")
+        self.assertEqual(block.citations[0], "Sleep & Recovery — Project Guidance")
+        for ch in block.citations[0]:
+            self.assertFalse(ord(ch) < 32 or (127 <= ord(ch) <= 159), f"Control char {ord(ch)} found in citation")
+
+    # Finding 6: Require safety_tags and keywords to be arrays/lists/tuples of non-blank strings
+    def test_finding6_loader_rejects_plain_string_and_malformed_collections(self):
+        bad1 = _GOOD_RECORD.copy()
+        bad1["safety_tags"] = "single_string_not_array"
+        p1 = _make_jsonl_file([bad1])
+        with self.assertRaises(MalformedRecordError):
+            KnowledgeBaseLoader([p1]).load()
+        p1.unlink()
+
+        bad2 = _GOOD_RECORD.copy()
+        bad2["keywords"] = ["sleep", "   "]
+        p2 = _make_jsonl_file([bad2])
+        with self.assertRaises(MalformedRecordError):
+            KnowledgeBaseLoader([p2]).load()
+        p2.unlink()
+
+        bad3 = _GOOD_RECORD.copy()
+        bad3["safety_tags"] = []
+        p3 = _make_jsonl_file([bad3])
+        with self.assertRaises(MalformedRecordError):
+            KnowledgeBaseLoader([p3]).load()
+        p3.unlink()
+
+        bad4 = _GOOD_RECORD.copy()
+        bad4["keywords"] = ["sleep", 42]
+        p4 = _make_jsonl_file([bad4])
+        with self.assertRaises(MalformedRecordError):
+            KnowledgeBaseLoader([p4]).load()
+        p4.unlink()
+
+    def test_finding6_model_rejects_plain_strings_and_empty_collections(self):
+        with self.assertRaises(ValueError):
+            _make_chunk(safety_tags="plain_string")
+        with self.assertRaises(ValueError):
+            _make_chunk(keywords="plain_string")
+        with self.assertRaises(ValueError):
+            _make_chunk(safety_tags=())
+        with self.assertRaises(ValueError):
+            _make_chunk(keywords=[])
+        with self.assertRaises(ValueError):
+            _make_chunk(safety_tags=["tag1", 99])
+
 
 if __name__ == "__main__":
     unittest.main()

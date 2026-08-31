@@ -21,11 +21,17 @@ from app.services.member3.guardian.retrieval_service import (
     RetrievalService,
 )
 
-# Default knowledge-base path (relative to the project root)
-_DEFAULT_KB_PATH = (
-    Path(__file__).resolve().parents[4]
-    / "ai" / "knowledge_base" / "member3" / "health_topics.jsonl"
-)
+def _resolve_default_kb_path() -> Path:
+    """Robustly resolve the default knowledge-base file path from repo root."""
+    current = Path(__file__).resolve()
+    for parent in [current] + list(current.parents):
+        candidate = parent / "ai" / "knowledge_base" / "member3" / "health_topics.jsonl"
+        if candidate.is_file():
+            return candidate
+    return current.parents[4] / "ai" / "knowledge_base" / "member3" / "health_topics.jsonl"
+
+
+_DEFAULT_KB_PATH = _resolve_default_kb_path()
 
 router = APIRouter(
     prefix="/api/v1/member3/rag",
@@ -42,7 +48,7 @@ def get_retrieval_service() -> RetrievalService:
 
     Override this dependency in tests to inject a custom knowledge base.
     """
-    return RetrievalService(knowledge_base_paths=[_DEFAULT_KB_PATH])
+    return RetrievalService(knowledge_base_paths=[_resolve_default_kb_path()])
 
 
 # ---------------------------------------------------------------------------
