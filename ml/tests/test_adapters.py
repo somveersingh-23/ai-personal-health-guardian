@@ -10,7 +10,16 @@ import pytest
 from app.schemas.member2.health_event import ReadingCreate
 from pydantic import TypeAdapter
 
-from sensor_intelligence.datasets import bidmc, capnobase, ppg_dalia, ptt_ppg, sleep_edf
+from sensor_intelligence.datasets import (
+    bidmc,
+    capnobase,
+    ppg_dalia,
+    ptt_ppg,
+    senssmarttech,
+    sleep_accel,
+    sleep_edf,
+    wrist_exercise,
+)
 
 
 def test_bidmc_csv_adapter_and_contract(tmp_path: Path) -> None:
@@ -226,3 +235,107 @@ def test_sleep_edf_adapter_merges_stages_and_validates_psg_bounds(
     assert [stage.stage for stage in validated.stages] == ["light", "rem"]
     assert event["metadata"]["psg_pair_validated"] is True
     assert event["metadata"]["merged_stages"] == 2
+
+
+def test_sleep_accel_adapter_converts_psg_labels_without_exporting_raw_motion(
+    tmp_path: Path,
+) -> None:
+    participant = "001"
+    np.savetxt(tmp_path / f"{participant}_heartrate.txt", [[0, 60], [30, 62], [60, 64]])
+    np.savetxt(
+        tmp_path / f"{participant}_acceleration.txt",
+        [[0, 0.1, 0.2, 0.3], [30, 0.2, 0.1, 0.3], [60, 0.3, 0.2, 0.1]],
+    )
+    np.savetxt(tmp_path / f"{participant}_steps.txt", [[0, 1], [30, 2], [60, 0]])
+    np.savetxt(tmp_path / f"{participant}_labeled_sleep.txt", [[0, 0], [30, 2], [60, 3], [90, 5]])
+
+    record = sleep_accel.load_record(tmp_path, participant)
+    events = sleep_accel.to_health_events(record)
+    adapter = TypeAdapter(ReadingCreate)
+
+    assert record.acceleration_g.shape == (3, 3)
+    assert [event["metric"] for event in events] == ["heart_rate", "sleep_duration"]
+    assert [stage["stage"] for stage in events[1]["stages"]] == ["awake", "light", "deep", "rem"]
+    assert all(adapter.validate_python(event) for event in events)
+
+
+def test_wrist_exercise_adapter_derives_reference_hr_from_ecg_peaks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeRecord:
+        fs = 100.0
+        sig_name = ["ECG", "PPG", "ACC_X", "ACC_Y", "ACC_Z"]
+        p_signal = np.column_stack(
+            [
+                np.ones(500),
+                np.linspace(0.0, 1.0, 500),
+                np.ones(500),
+                np.ones(500) * 2,
+                np.ones(500) * 2,
+            ]
+        )
+        p_signal[498:500, 1:] = np.nan
+
+    class FakeAnnotation:
+        sample = np.asarray([0, 100, 200, 300, 400], dtype=np.int64)
+
+    header = tmp_path / "s1_walk.hea"
+    header.write_text("fixture", encoding="utf-8")
+    monkeypatch.setattr(wrist_exercise.wfdb, "rdrecord", lambda _: FakeRecord())
+    monkeypatch.setattr(wrist_exercise.wfdb, "rdann", lambda _, __: FakeAnnotation())
+
+    record = wrist_exercise.load_record(tmp_path, "s1_walk")
+    events = wrist_exercise.to_health_events(record)
+    adapter = TypeAdapter(ReadingCreate)
+
+    assert record.channel("acceleration_magnitude").values[0] == pytest.approx(3.0)
+    assert np.isfinite(record.channel("ppg").values).all()
+    assert events[0]["metadata"]["activity"] == "walk"
+    assert events[0]["samples"][0]["value"] == pytest.approx(60.0)
+    assert record.metadata["discarded_trailing_ppg_motion_samples"] == 2
+    assert record.channel("ppg").values.size == 498
+    assert all(adapter.validate_python(event) for event in events)
+
+
+def test_senssmarttech_adapter_aligns_modalities_and_exports_ecg_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rate = 100.0
+    samples = 2_000
+    time = np.arange(samples) / rate
+    record_id = "1_10-09-54"
+    for modality in ("ppg", "ecg", "acc"):
+        (tmp_path / f"{record_id}_{modality}.hea").write_text("fixture", encoding="utf-8")
+
+    class FakeRecord:
+        fs = rate
+
+        def __init__(self, modality: str) -> None:
+            if modality == "ppg":
+                self.sig_name = ["carotid_880nm", "carotid_660nm"]
+                self.p_signal = np.column_stack((np.sin(2 * np.pi * time), time))
+            elif modality == "ecg":
+                self.sig_name = ["I", "II"]
+                lead_ii = np.zeros(samples)
+                lead_ii[np.arange(100, samples, 100)] = 10.0
+                self.p_signal = np.column_stack((np.zeros(samples), lead_ii))
+            else:
+                self.sig_name = ["az"]
+                self.p_signal = np.sin(2 * np.pi * 0.5 * time).reshape(-1, 1)
+
+    def read_record(path: str) -> FakeRecord:
+        if path.endswith("_ppg"):
+            return FakeRecord("ppg")
+        if path.endswith("_ecg"):
+            return FakeRecord("ecg")
+        return FakeRecord("acc")
+
+    monkeypatch.setattr(senssmarttech.wfdb, "rdrecord", read_record)
+    record = senssmarttech.load_record(tmp_path, record_id)
+    events = senssmarttech.to_health_events(record)
+    validated = TypeAdapter(ReadingCreate).validate_python(events[0])
+
+    assert record.participant_id == "1"
+    assert record.channel("ppg").sampling_rate_hz == rate
+    assert validated.metric.value == "heart_rate"
+    assert events[0]["metadata"]["reference"] == "lead_ii_ecg_r_peak_algorithm"

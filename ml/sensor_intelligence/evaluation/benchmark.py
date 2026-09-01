@@ -26,15 +26,25 @@ from sklearn.metrics import (
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from sensor_intelligence.datasets import bidmc, capnobase, ppg_dalia, ptt_ppg
+from sensor_intelligence.datasets import (
+    bidmc,
+    capnobase,
+    ppg_dalia,
+    ptt_ppg,
+    senssmarttech,
+    wrist_exercise,
+)
 from sensor_intelligence.evaluation.metrics import regression_metrics
 from sensor_intelligence.evaluation.splits import ParticipantSplit, participant_split
 from sensor_intelligence.evaluation.windows import (
     WindowObservation,
     bidmc_windows,
     ppg_dalia_windows,
+    senssmarttech_windows,
+    wrist_exercise_windows,
 )
-from sensor_intelligence.paths import require_within
+from sensor_intelligence.paths import REPOSITORY_ROOT, require_within
+from sensor_intelligence.quality_model import load_quality_model
 from sensor_intelligence.signal_processing import (
     analyze_ppg_window,
     estimate_respiration_rate_from_impedance,
@@ -98,6 +108,12 @@ def _observations(
         elif dataset == "bidmc":
             record = bidmc.load_record(root, participant)
             windows = bidmc_windows(record)
+        elif dataset == "senssmarttech":
+            record = senssmarttech.load_record(root, participant)
+            windows = senssmarttech_windows(record)
+        elif dataset == "wrist-exercise":
+            record = wrist_exercise.load_record(root, participant)
+            windows = wrist_exercise_windows(record)
         else:
             raise ValueError(f"unsupported benchmark dataset: {dataset}")
         if max_windows_per_participant is not None:
@@ -112,6 +128,39 @@ def _observations(
     if not rows:
         raise ValueError(f"no usable {dataset} windows were produced")
     return rows, failed_windows
+
+
+def _frozen_quality_gate_report(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Evaluate the checked-in research model without refitting or threshold tuning."""
+
+    model_root = REPOSITORY_ROOT / "ml" / "models"
+    manifest = json.loads((model_root / "ppg-quality-model.manifest.json").read_text("utf-8"))
+    model = load_quality_model(
+        model_root / str(manifest["artifact"]),
+        expected_sha256=str(manifest["artifact_sha256"]),
+    )
+    probabilities = np.asarray(
+        [
+            model.predict({name: row[name] for name in model.feature_names}).usable_probability
+            for row in rows
+        ]
+    )
+    accepted = probabilities >= model.threshold
+    labels = np.asarray([row["quality_target"] for row in rows], dtype=int)
+    return {
+        "model": {
+            "artifact": manifest["artifact"],
+            "artifact_sha256": model.model_sha256,
+            "activation_status": manifest["activation_status"],
+            "claim_class": manifest["claim_class"],
+            "threshold": model.threshold,
+        },
+        "untuned_external_metrics": _classification_metrics(labels, probabilities, model.threshold),
+        "accepted_pulse_rate": _error_report(rows, accepted),
+        "accepted_participant_breakdown": _participant_error_report(
+            rows, tuple(sorted({str(row["participant_id"]) for row in rows})), accepted
+        ),
+    }
 
 
 def _analyze(window: WindowObservation) -> dict[str, Any]:
@@ -562,6 +611,112 @@ def run_bidmc_external_benchmark(
     }
     output_root.mkdir(parents=True, exist_ok=True)
     report_path = require_within(output_root, output_root / "bidmc-external-benchmark.json")
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
+
+
+def run_senssmarttech_external_benchmark(
+    dataset_root: Path,
+    output_root: Path,
+    max_windows_per_participant: int | None = None,
+) -> dict[str, Any]:
+    """Run an untuned, frozen-model external quality check on SensSmartTech."""
+
+    record_ids = senssmarttech.record_ids(dataset_root)
+    rows, failed_windows = _observations(
+        "senssmarttech", dataset_root, record_ids, max_windows_per_participant
+    )
+    participants = tuple(sorted({str(row["participant_id"]) for row in rows}))
+    report = {
+        "schema_version": "1.0.0",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "dataset": "senssmarttech",
+        "input_provenance": _input_provenance(dataset_root, "senssmarttech", "1.0.0"),
+        "purpose": "frozen external PPG quality-gate and waveform-integrity research check",
+        "non_diagnostic": True,
+        "benchmark_integrity": (
+            "The PPG-DaLiA quality model, its parameters, and acceptance threshold are loaded "
+            "from the checksum-pinned checked-in artifact. SensSmartTech is never used for "
+            "training, threshold selection, calibration, or model replacement."
+        ),
+        "source_protocol": {
+            "ppg_channel": "carotid_880nm",
+            "reference": "lead-II ECG R-peak algorithm",
+            "motion_channel": "az accelerometer",
+            "window_seconds": 8,
+            "stride_seconds": 2,
+        },
+        "records": len(record_ids),
+        "participants": len(participants),
+        "failed_windows": failed_windows,
+        "baseline": _participant_error_report(rows, participants),
+        "frozen_quality_gate": _frozen_quality_gate_report(rows),
+        "scientific_limitations": (
+            "SensSmartTech's carotid/brachial optical recordings are not wrist wearable data. "
+            "The ECG peak extractor is an offline research reference, not a clinical ECG "
+            "algorithm. "
+            "Overlapping windows are serially correlated; results cannot establish clinical, "
+            "consumer-device, SpO2, respiratory-rate, or diagnostic performance."
+        ),
+    }
+    output_root.mkdir(parents=True, exist_ok=True)
+    report_path = require_within(output_root, output_root / "senssmarttech-external-benchmark.json")
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
+
+
+def run_wrist_exercise_external_benchmark(
+    dataset_root: Path,
+    output_root: Path,
+    max_windows_per_participant: int | None = None,
+) -> dict[str, Any]:
+    """Run the frozen quality model on independent wrist PPG exercise recordings."""
+
+    record_ids = wrist_exercise.participant_ids(dataset_root)
+    rows, failed_windows = _observations(
+        "wrist-exercise", dataset_root, record_ids, max_windows_per_participant
+    )
+    recording_ids = tuple(sorted({str(row["participant_id"]) for row in rows}))
+    source_participants = tuple(
+        sorted({record_id.split("_", maxsplit=1)[0] for record_id in record_ids})
+    )
+    report = {
+        "schema_version": "1.0.0",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "dataset": "wrist-exercise",
+        "input_provenance": _input_provenance(dataset_root, "wrist-exercise", "1.0.0"),
+        "purpose": "frozen external wrist-PPG quality-gate research check",
+        "non_diagnostic": True,
+        "benchmark_integrity": (
+            "The PPG-DaLiA quality model, its parameters, and acceptance threshold are loaded "
+            "from the checksum-pinned checked-in artifact. Wrist Exercise is never used for "
+            "training, threshold selection, calibration, or model replacement."
+        ),
+        "source_protocol": {
+            "ppg_channel": "wrist_ppg",
+            "reference": "chest ECG atr R-peak annotations",
+            "motion_channel": "one physical tri-axial wrist accelerometer",
+            "window_seconds": 8,
+            "stride_seconds": 2,
+            "trailing_missing_data": "PPG/motion tail excluded without imputation",
+        },
+        "recordings": len(recording_ids),
+        "source_participants": len(source_participants),
+        "source_participant_ids": list(source_participants),
+        "failed_windows": failed_windows,
+        "baseline_by_recording": _participant_error_report(rows, recording_ids),
+        "frozen_quality_gate": _frozen_quality_gate_report(rows),
+        "scientific_limitations": (
+            "This dataset contains only eight participants and short controlled exercise "
+            "recordings. Its cycling PPG was publisher-filtered before WFDB conversion. "
+            "Overlapping windows are serially correlated; results cannot establish clinical, "
+            "consumer-device, SpO2, respiratory-rate, or diagnostic performance."
+        ),
+    }
+    output_root.mkdir(parents=True, exist_ok=True)
+    report_path = require_within(
+        output_root, output_root / "wrist-exercise-external-benchmark.json"
+    )
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 

@@ -18,6 +18,8 @@ from sensor_intelligence.evaluation.benchmark import (
     run_capnobase_external_respiration_benchmark,
     run_ppg_dalia_benchmark,
     run_ptt_ppg_dual_wavelength_validation,
+    run_senssmarttech_external_benchmark,
+    run_wrist_exercise_external_benchmark,
 )
 from sensor_intelligence.paths import REPOSITORY_ROOT, data_root
 from sensor_intelligence.validation import validate_dataset_contracts
@@ -102,6 +104,14 @@ def _benchmark(dataset: str, max_windows_per_participant: int | None) -> int:
         result = run_ptt_ppg_dual_wavelength_validation(
             source, output, max_windows_per_participant
         )
+    elif dataset == "senssmarttech":
+        result = run_senssmarttech_external_benchmark(
+            source, output, max_windows_per_participant
+        )
+    elif dataset == "wrist-exercise":
+        result = run_wrist_exercise_external_benchmark(
+            source, output, max_windows_per_participant
+        )
     else:
         raise ValueError(f"{dataset} has no pulse-rate benchmark")
     print(json.dumps(result, indent=2))
@@ -144,12 +154,30 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subcommands.add_parser(
         "validate-contracts", help="Validate real-data adapters against the backend contract"
     )
-    validate.add_argument("dataset", choices=["bidmc", "ppg-dalia", "sleep-edf"])
+    validate.add_argument(
+        "dataset",
+        choices=[
+            "bidmc",
+            "ppg-dalia",
+            "senssmarttech",
+            "sleep-accel",
+            "sleep-edf",
+            "wrist-exercise",
+        ],
+    )
     benchmark = subcommands.add_parser(
         "benchmark", help="Run a participant-held-out real-signal benchmark"
     )
     benchmark.add_argument(
-        "dataset", choices=["bidmc", "capnobase", "ppg-dalia", "ptt-ppg"]
+        "dataset",
+        choices=[
+            "bidmc",
+            "capnobase",
+            "ppg-dalia",
+            "ptt-ppg",
+            "senssmarttech",
+            "wrist-exercise",
+        ],
     )
     benchmark.add_argument("--max-windows-per-participant", type=int, default=None)
     prepare = subcommands.add_parser(

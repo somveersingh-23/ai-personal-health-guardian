@@ -68,6 +68,20 @@ def _open_with_retry(request: urllib.request.Request) -> object:
     raise AssertionError("unreachable")
 
 
+def _validate_resumed_content_range(response: object, resume_at: int) -> None:
+    """Reject a 206 response unless it begins exactly at the requested byte."""
+
+    if getattr(response, "status", None) != 206:
+        return
+    content_range = response.headers.get("Content-Range", "")
+    expected_prefix = f"bytes {resume_at}-"
+    if not content_range.lower().startswith(expected_prefix):
+        raise ValueError(
+            "resumed dataset response has an unexpected Content-Range; "
+            "refusing to corrupt the partial archive"
+        )
+
+
 def download_resource(
     resource: ResourceSpec,
     root: Path,
@@ -96,6 +110,8 @@ def download_resource(
     if resume_at:
         request.add_header("Range", f"bytes={resume_at}-")
     with _open_with_retry(request) as response:
+        if resume_at:
+            _validate_resumed_content_range(response, resume_at)
         append = resume_at > 0 and getattr(response, "status", None) == 206
         mode = "ab" if append else "wb"
         downloaded = resume_at if append else 0
@@ -127,6 +143,7 @@ def safe_extract_zip(
     *,
     max_uncompressed_bytes: int,
     max_members: int,
+    strip_single_archive_root: bool = False,
 ) -> list[str]:
     resolved_destination = require_within(root, destination)
     resolved_destination.mkdir(parents=True, exist_ok=True)
@@ -137,9 +154,33 @@ def safe_extract_zip(
             raise ValueError("dataset archive contains too many members")
         if sum(member.file_size for member in members) > max_uncompressed_bytes:
             raise ValueError("dataset archive exceeds configured uncompressed size limit")
+        archive_paths = [Path(member.filename.replace("/", os.sep)) for member in members]
+        root_directory: str | None = None
+        if strip_single_archive_root:
+            roots = {
+                path.parts[0]
+                for path in archive_paths
+                if path.parts and path.parts[0] not in {".", ""}
+            }
+            if len(roots) != 1:
+                raise ValueError("archive does not have one safe root directory to strip")
+            root_directory = roots.pop()
         seen_targets: set[Path] = set()
-        for member in members:
-            target = require_within(resolved_destination, resolved_destination / member.filename)
+        for member, archive_path in zip(members, archive_paths, strict=True):
+            if archive_path.is_absolute() or ".." in archive_path.parts:
+                raise ValueError(
+                    f"dataset archive member escapes extraction root: {member.filename}"
+                )
+            relative_path = archive_path
+            if root_directory is not None:
+                if not archive_path.parts or archive_path.parts[0] != root_directory:
+                    raise ValueError(f"archive member is outside expected root: {member.filename}")
+                relative_path = Path(*archive_path.parts[1:])
+                if not relative_path.parts:
+                    if member.is_dir():
+                        continue
+                    raise ValueError(f"file cannot be archive root: {member.filename}")
+            target = require_within(resolved_destination, resolved_destination / relative_path)
             if target in seen_targets:
                 raise ValueError(f"duplicate dataset archive member: {member.filename}")
             seen_targets.add(target)
@@ -254,13 +295,16 @@ def acquire_dataset(
         )
         if resource.extract_zip:
             archive = Path(str(record["path"]))
-            extract_dir = archive.parent / "extracted"
+            if Path(resource.extract_directory_name).name != resource.extract_directory_name:
+                raise ValueError("dataset extraction directory name must be a simple relative name")
+            extract_dir = archive.parent / resource.extract_directory_name
             record["extracted_files"] = safe_extract_zip(
                 archive,
                 extract_dir,
                 root,
                 max_uncompressed_bytes=resource.max_uncompressed_bytes,
                 max_members=resource.max_archive_members,
+                strip_single_archive_root=resource.strip_single_archive_root,
             )
             record["publisher_checksums_verified"] = verify_embedded_sha256sums(extract_dir)
             nested_archives: list[dict[str, object]] = []

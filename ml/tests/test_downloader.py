@@ -7,12 +7,19 @@ from pathlib import Path
 import pytest
 
 from sensor_intelligence.datasets.downloader import (
+    _validate_resumed_content_range,
     acquire_dataset,
     download_resource,
     safe_extract_zip,
     verify_embedded_sha256sums,
 )
 from sensor_intelligence.datasets.registry import DatasetSpec, ResourceSpec
+
+
+class _FakeResumeResponse:
+    def __init__(self, content_range: str) -> None:
+        self.status = 206
+        self.headers = {"Content-Range": content_range}
 
 
 def test_existing_resource_is_checksum_verified(tmp_path: Path) -> None:
@@ -30,6 +37,19 @@ def test_existing_resource_is_checksum_verified(tmp_path: Path) -> None:
     result = download_resource(resource, tmp_path)
 
     assert result["bytes"] == len(content)
+
+
+def test_resumed_response_must_start_at_requested_byte() -> None:
+    _validate_resumed_content_range(
+        _FakeResumeResponse("bytes 100-199/200"),
+        100,
+    )
+
+    with pytest.raises(ValueError, match="unexpected Content-Range"):
+        _validate_resumed_content_range(
+            _FakeResumeResponse("bytes 0-199/200"),
+            100,
+        )
 
 
 def test_existing_resource_is_publisher_md5_verified(tmp_path: Path) -> None:
@@ -81,6 +101,23 @@ def test_zip_bomb_declared_size_is_rejected(tmp_path: Path) -> None:
             max_uncompressed_bytes=1_000,
             max_members=10,
         )
+
+
+def test_zip_single_root_can_be_stripped_to_short_destination(tmp_path: Path) -> None:
+    archive = tmp_path / "wrapped.zip"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("publisher-release-very-long-root/records/sample.bin", b"signal")
+
+    safe_extract_zip(
+        archive,
+        tmp_path / "x",
+        tmp_path,
+        max_uncompressed_bytes=1_024,
+        max_members=10,
+        strip_single_archive_root=True,
+    )
+
+    assert (tmp_path / "x" / "records" / "sample.bin").read_bytes() == b"signal"
 
 
 def test_publisher_checksum_manifest_is_verified(tmp_path: Path) -> None:

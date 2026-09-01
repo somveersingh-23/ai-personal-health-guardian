@@ -22,6 +22,8 @@ class ResourceSpec:
     inspect_nested_zip_paths: tuple[str, ...] = ()
     max_nested_uncompressed_bytes: int = 1024 * 1024 * 1024
     expected_nested_sha256: tuple[tuple[str, str], ...] = ()
+    extract_directory_name: str = "extracted"
+    strip_single_archive_root: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +84,70 @@ DATASETS: dict[str, DatasetSpec] = {
                 max_download_bytes=300 * 1024 * 1024,
                 max_uncompressed_bytes=500 * 1024 * 1024,
             ),
+        ),
+    ),
+    "bami1": DatasetSpec(
+        key="bami1",
+        title="BAMI1 Watch-Type PPG Motion-Artifact Dataset",
+        version="repository snapshot",
+        homepage="https://github.com/hooseok/BAMI1",
+        license_name=(
+            "Copyright retained; academic research use with suitable citation stated by publisher"
+        ),
+        license_url="https://github.com/hooseok/BAMI1",
+        citation="Lee, Chung & Lee; cite the publisher's linked paper and dataset acknowledgement",
+        access_mode="manual",
+        purpose=(
+            "Future motion-artifact robustness experiment using multi-channel green PPG, "
+            "accelerometer and gyroscope."
+        ),
+        limitations=(
+            "The repository's stated permission is academic-research use with citation, "
+            "not a general open-data licence.",
+            "Twenty-four healthy subjects performed a short treadmill protocol; it is not "
+            "free-living or clinical validation.",
+            "Do not assume raw ECG is distributed: verify exact files and reference-HR "
+            "format before adapter work.",
+        ),
+    ),
+    "bami2": DatasetSpec(
+        key="bami2",
+        title="BAMI2 Watch-Type PPG Motion-Artifact Dataset",
+        version="repository snapshot",
+        homepage="https://github.com/hooseok/BAMI2",
+        license_name=(
+            "Copyright retained; academic research use with suitable citation stated by publisher"
+        ),
+        license_url="https://github.com/hooseok/BAMI2",
+        citation="Lee, Chung & Lee; cite the publisher's linked paper and dataset acknowledgement",
+        access_mode="manual",
+        purpose=(
+            "Future held-out motion-artifact robustness experiment with PPG, accelerometer, "
+            "gyroscope and ECG-derived HR reference."
+        ),
+        limitations=(
+            "The repository's stated permission is academic-research use with citation, "
+            "not a general open-data licence.",
+            "Twenty-three healthy subjects performed a short treadmill protocol; it is not "
+            "free-living or clinical validation.",
+            "Do not assume raw ECG is distributed: verify exact files and reference-HR "
+            "format before adapter work.",
+        ),
+    ),
+    "bigideaslab-step": DatasetSpec(
+        key="bigideaslab-step",
+        title="BigIdeasLab STEP Smartwatch Heart-Rate Dataset",
+        version="1.0",
+        homepage="https://physionet.org/content/bigideaslab-step-hr-smartwatch/1.0/",
+        license_name="PhysioNet Restricted Health Data License 1.5.0",
+        license_url="https://physionet.org/content/bigideaslab-step-hr-smartwatch/1.0/",
+        citation="Bent & Dunn (2021), PhysioNet DOI 10.13026/cqfy-d860",
+        access_mode="manual",
+        purpose="Future device, activity, and skin-tone subgroup error audit against ECG HR",
+        limitations=(
+            "Access requires a registered PhysioNet account and the dataset use agreement",
+            "It contains device-reported HR, not raw PPG or a generalizable clinical label",
+            "Historical devices, firmware, and collection dates cannot validate current models",
         ),
     ),
     "ppg-dalia": DatasetSpec(
@@ -176,6 +242,202 @@ DATASETS: dict[str, DatasetSpec] = {
                     "a4cf67694ade1b52a0ddd06d5817fd45d2d3e8bac5302f640f3e9cfbbf12a996"
                 ),
                 max_download_bytes=1024 * 1024,
+            ),
+        ),
+    ),
+    "wearanize-plus-oa": DatasetSpec(
+        key="wearanize-plus-oa",
+        title="Wearanize+ Open-Access Multimodal Sleep Dataset",
+        version="v1.1 OA",
+        homepage="https://github.com/Niloy333/Wearanize_plus",
+        license_name=(
+            "Scientific-research-only terms; no re-identification "
+            "(source-specific open-access collection)"
+        ),
+        license_url="https://github.com/Niloy333/Wearanize_plus",
+        citation="Wearanize+ dataset and its reference paper; use the source's requested citation",
+        access_mode="manual",
+        purpose=(
+            "Future device-specific offline sleep-session and missing/corrupted-data "
+            "robustness research against PSG labels."
+        ),
+        limitations=(
+            "The repository's MIT licence covers repository code, not a blanket licence for "
+            "participant data.",
+            "The open-access collection excludes questionnaires; scientific-research-only "
+            "and no-re-identification conditions apply.",
+            "It supports offline research only, never a production or PSG-equivalent "
+            "sleep-stage claim.",
+        ),
+    ),
+    "sleep-accel": DatasetSpec(
+        key="sleep-accel",
+        title="Motion and Heart Rate from a Wrist-Worn Wearable and PSG Sleep Labels",
+        version="1.0.0",
+        homepage="https://physionet.org/content/sleep-accel/1.0.0/",
+        license_name="Open Data Commons Attribution License 1.0",
+        license_url="https://opendatacommons.org/licenses/by/1-0/",
+        citation="Walch et al. (2019), PhysioNet DOI 10.13026/hmhs-py35",
+        access_mode="automatic",
+        purpose="External Apple Watch HR/motion/steps and PSG-labelled sleep session validation",
+        limitations=(
+            "Only 31 released participants; hold every participant out of any tuning split",
+            "PSG labels validate offline session conversion, not a production sleep-stage claim",
+            "Apple Watch collection and labels are historical and not Android Health Connect data",
+        ),
+        resources=(
+            ResourceSpec(
+                name="sleep-accel-archive",
+                url="https://physionet.org/content/sleep-accel/get-zip/1.0.0/",
+                relative_path="raw/sleep-accel/1.0.0/sleep-accel.zip",
+                extract_zip=True,
+                max_download_bytes=700 * 1024 * 1024,
+                max_uncompressed_bytes=3 * 1024 * 1024 * 1024,
+                max_archive_members=10_000,
+            ),
+        ),
+    ),
+    "bidsleep": DatasetSpec(
+        key="bidsleep",
+        title="BIDSleep: Multi-Night Apple Watch HR, Motion, and Sleep Labels",
+        version="1.0.0",
+        homepage="https://physionet.org/content/bidsleep-dataset/1.0.0/",
+        license_name="Open Data Commons Attribution License 1.0",
+        license_url="https://opendatacommons.org/licenses/by/1-0/",
+        citation="Song et al. (2026), PhysioNet DOI 10.13026/a0sy-7t69",
+        access_mode="manual",
+        purpose=(
+            "Future multi-night Apple Watch HR/motion and sleep-label external research "
+            "validation."
+        ),
+        limitations=(
+            "The 5.9 GB archive (27.9 GB uncompressed) needs selective, participant-safe "
+            "acquisition rather than an automatic full download.",
+            "The labels are Dreem-device annotations, not a basis for a clinical or "
+            "PSG-equivalence product claim.",
+            "Historical Apple Watch/HealthKit data does not validate Android or all OEM devices.",
+        ),
+    ),
+    "dreamt": DatasetSpec(
+        key="dreamt",
+        title="DREAMT: Multisensor Wearable Sleep Dataset",
+        version="2.2.0",
+        homepage="https://physionet.org/content/dreamt/2.2.0/",
+        license_name="PhysioNet Restricted Health Data License 1.5.0",
+        license_url="https://physionet.org/content/dreamt/2.2.0/",
+        citation="Wang et al. (2026), PhysioNet DOI 10.13026/3f7y-2d80",
+        access_mode="manual",
+        purpose="Future approved multisensor sleep research only.",
+        limitations=(
+            "Requires a registered PhysioNet account and signed data-use agreement.",
+            "Never download automatically or store access credentials in this project.",
+            "Do not make a clinical sleep-disorder or PSG-equivalence claim from this source.",
+        ),
+    ),
+    "scientisst-move": DatasetSpec(
+        key="scientisst-move",
+        title="ScientISST MOVE Multimodal Everyday-Activity Biosignals",
+        version="1.0.1",
+        homepage="https://physionet.org/content/scientisst-move-biosignals/1.0.1/",
+        license_name="Open Data Commons Attribution License 1.0",
+        license_url="https://opendatacommons.org/licenses/by/1-0/",
+        citation="Areias Saraiva et al. (2024), PhysioNet DOI 10.13026/hyxq-r919",
+        access_mode="automatic",
+        purpose=(
+            "External PPG/ECG/actigraphy/temperature signal-quality research during "
+            "annotated everyday movement."
+        ),
+        limitations=(
+            "Seventeen healthy volunteers and roughly 37 synchronized minutes each are "
+            "insufficient for a broad wearable claim.",
+            "Use its chest ECG only as a pulse-rate reference; do not use it for diagnosis.",
+            "A source-specific adapter and participant-disjoint evaluation are required."
+        ),
+        resources=(
+            ResourceSpec(
+                name="scientisst-move-archive",
+                url="https://physionet.org/content/scientisst-move-biosignals/get-zip/1.0.1/",
+                relative_path="raw/scientisst-move/1.0.1/scientisst-move.zip",
+                extract_zip=True,
+                max_download_bytes=250 * 1024 * 1024,
+                max_uncompressed_bytes=600 * 1024 * 1024,
+                max_archive_members=10_000,
+            ),
+        ),
+    ),
+    "senssmarttech": DatasetSpec(
+        key="senssmarttech",
+        title="SensSmartTech Synchronous Cardiovascular Waveforms",
+        version="1.0.0",
+        homepage="https://physionet.org/content/senssmarttech/1.0.0/",
+        license_name="Creative Commons Attribution 4.0 International",
+        license_url="https://creativecommons.org/licenses/by/4.0/",
+        citation="SensSmartTech (2024), PhysioNet DOI 10.13026/fy9p-n277",
+        access_mode="automatic",
+        purpose=(
+            "External PPG/ECG/accelerometer synchronization and signal-integrity "
+            "research validation."
+        ),
+        limitations=(
+            "Its recording protocol and participant characteristics must be checked before "
+            "any performance claim.",
+            "It validates waveform handling and HR research, not consumer-device clinical use.",
+            "A source-specific adapter and participant-disjoint evaluation are required."
+        ),
+        resources=(
+            ResourceSpec(
+                name="senssmarttech-archive",
+                url="https://physionet.org/content/senssmarttech/get-zip/1.0.0/",
+                relative_path="raw/senssmarttech/1.0.0/senssmarttech.zip",
+                extract_zip=True,
+                max_download_bytes=350 * 1024 * 1024,
+                max_uncompressed_bytes=1024 * 1024 * 1024,
+                max_archive_members=20_000,
+                extract_directory_name="x",
+                strip_single_archive_root=True,
+            ),
+        ),
+    ),
+    "all-of-us-fitbit": DatasetSpec(
+        key="all-of-us-fitbit",
+        title="All of Us Research Program Fitbit Data",
+        version="access-controlled",
+        homepage="https://support.researchallofus.org/hc/en-us/articles/20281023493908-Resources-for-Using-Fitbit-Data",
+        license_name="All of Us Researcher Workbench access controls and data-use agreement",
+        license_url="https://www.researchallofus.org/data-tools/data-access/",
+        citation="All of Us Research Program, Fitbit data resources",
+        access_mode="manual",
+        purpose="Future approved longitudinal baseline research under an institutional protocol",
+        limitations=(
+            "No credentials, participant data, queries, exports, or access tokens are stored here",
+            "Access requires the program's current registration, training, and data-use conditions",
+            "This is not an MVP dataset and cannot be silently substituted for public data",
+        ),
+    ),
+    "wrist-exercise": DatasetSpec(
+        key="wrist-exercise",
+        title="Wrist PPG During Exercise",
+        version="1.0.0",
+        homepage="https://physionet.org/content/wrist/1.0.0/",
+        license_name="Open Data Commons Attribution License 1.0",
+        license_url="https://opendatacommons.org/licenses/by/1-0/",
+        citation="Jarchi & Casson (2017), PhysioNet DOI 10.13026/C2PQ1X",
+        access_mode="automatic",
+        purpose="External wrist PPG, IMU motion, and ECG R-peak heart-rate quality validation",
+        limitations=(
+            "Only eight participants and short controlled exercise recordings",
+            "Cycling PPG was publisher-filtered before WFDB conversion",
+            "Use for signal-quality research, not disease, diagnostic, or medical-device claims",
+        ),
+        resources=(
+            ResourceSpec(
+                name="wrist-exercise-archive",
+                url="https://physionet.org/content/wrist/get-zip/1.0.0/",
+                relative_path="raw/wrist-exercise/1.0.0/wrist-exercise.zip",
+                extract_zip=True,
+                max_download_bytes=100 * 1024 * 1024,
+                max_uncompressed_bytes=100 * 1024 * 1024,
+                max_archive_members=1_000,
             ),
         ),
     ),

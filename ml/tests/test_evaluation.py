@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 
+from sensor_intelligence.datasets.records import EventAnnotation, ResearchRecord, SignalChannel
 from sensor_intelligence.evaluation.benchmark import (
     _participant_error_report,
     _select_threshold,
 )
 from sensor_intelligence.evaluation.metrics import regression_metrics
 from sensor_intelligence.evaluation.splits import participant_split
+from sensor_intelligence.evaluation.windows import wrist_exercise_windows
 
 
 def test_participant_split_is_complete_deterministic_and_disjoint() -> None:
@@ -64,3 +66,30 @@ def test_participant_error_report_preserves_individuals_and_macro_mean() -> None
     assert report["per_participant"]["P2"]["mae_bpm"] == 10.0
     assert report["participant_macro_summary"]["participants"] == 2
     assert report["participant_macro_summary"]["macro_mean_mae_bpm"] == 6.0
+
+
+def test_wrist_windows_use_only_contemporaneous_ecg_reference_peaks() -> None:
+    rate = 100.0
+    samples = 2_000
+    record = ResearchRecord(
+        dataset="wrist-exercise",
+        participant_id="s1_walk",
+        duration_seconds=samples / rate,
+        channels={
+            "ppg": SignalChannel("ppg", np.sin(np.arange(samples)), rate, "a.u."),
+            "acceleration_magnitude": SignalChannel(
+                "acceleration_magnitude", np.ones(samples), rate, "a.u."
+            ),
+        },
+        annotations={
+            "ecg_r_peaks": EventAnnotation(
+                "ecg_r_peaks", np.arange(50, samples, 100, dtype=np.int64), rate
+            )
+        },
+    )
+
+    windows = wrist_exercise_windows(record)
+
+    assert windows
+    assert windows[0].reference_heart_rate_bpm == 60.0
+    assert windows[0].acceleration is not None

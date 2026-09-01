@@ -9,7 +9,14 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from sensor_intelligence.datasets import bidmc, ppg_dalia, sleep_edf
+from sensor_intelligence.datasets import (
+    bidmc,
+    ppg_dalia,
+    senssmarttech,
+    sleep_accel,
+    sleep_edf,
+    wrist_exercise,
+)
 from sensor_intelligence.paths import REPOSITORY_ROOT
 
 
@@ -61,6 +68,35 @@ def validate_dataset_contracts(dataset: str, dataset_root: Path) -> dict[str, An
             )
             metric_counts[validated.metric.value] += 1
             event_count += 1
+    elif dataset == "sleep-accel":
+        identifiers = sleep_accel.participant_ids(dataset_root)
+        for identifier in identifiers:
+            participants += 1
+            for event in sleep_accel.to_health_events(
+                sleep_accel.load_record(dataset_root, identifier)
+            ):
+                validated = adapter.validate_python(event)
+                metric_counts[validated.metric.value] += 1
+                event_count += 1
+    elif dataset == "wrist-exercise":
+        identifiers = wrist_exercise.participant_ids(dataset_root)
+        for identifier in identifiers:
+            participants += 1
+            for event in wrist_exercise.to_health_events(
+                wrist_exercise.load_record(dataset_root, identifier)
+            ):
+                validated = adapter.validate_python(event)
+                metric_counts[validated.metric.value] += 1
+                event_count += 1
+    elif dataset == "senssmarttech":
+        for record_id in senssmarttech.record_ids(dataset_root):
+            participants += 1
+            for event in senssmarttech.to_health_events(
+                senssmarttech.load_record(dataset_root, record_id)
+            ):
+                validated = adapter.validate_python(event)
+                metric_counts[validated.metric.value] += 1
+                event_count += 1
     else:
         raise ValueError(f"unsupported contract-validation dataset: {dataset}")
     return {

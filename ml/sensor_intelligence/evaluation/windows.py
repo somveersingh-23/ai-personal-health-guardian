@@ -102,3 +102,78 @@ def bidmc_windows(
             )
         )
     return windows
+
+
+def senssmarttech_windows(
+    record: ResearchRecord, window_seconds: float = 8.0, stride_seconds: float = 2.0
+) -> list[WindowObservation]:
+    """Create windows against a contemporaneous ECG-derived HR reference."""
+
+    ppg = record.channel("ppg")
+    acceleration = record.channel("acceleration")
+    peaks = record.annotations["ecg_r_peaks"]
+    width = int(round(window_seconds * ppg.sampling_rate_hz))
+    stride = int(round(stride_seconds * ppg.sampling_rate_hz))
+    windows: list[WindowObservation] = []
+    for window_index, start in enumerate(range(0, ppg.values.size - width + 1, stride)):
+        end = start + width
+        in_window = peaks.sample_indices[
+            (peaks.sample_indices >= start) & (peaks.sample_indices < end)
+        ]
+        if in_window.size < 3:
+            continue
+        intervals = np.diff(in_window) / peaks.sampling_rate_hz
+        intervals = intervals[(intervals >= 0.25) & (intervals <= 2.4)]
+        if intervals.size < 2:
+            continue
+        reference = float(60.0 / np.median(intervals))
+        windows.append(
+            WindowObservation(
+                dataset=record.dataset,
+                participant_id=record.participant_id,
+                window_index=window_index,
+                ppg=ppg.values[start:end],
+                ppg_rate_hz=ppg.sampling_rate_hz,
+                acceleration=acceleration.values[start:end],
+                acceleration_rate_hz=acceleration.sampling_rate_hz,
+                reference_heart_rate_bpm=reference,
+            )
+        )
+    return windows
+
+
+def wrist_exercise_windows(
+    record: ResearchRecord, window_seconds: float = 8.0, stride_seconds: float = 2.0
+) -> list[WindowObservation]:
+    """Create wrist PPG windows against the dataset's chest-ECG R-peak reference."""
+
+    ppg = record.channel("ppg")
+    acceleration = record.channel("acceleration_magnitude")
+    peaks = record.annotations["ecg_r_peaks"]
+    width = int(round(window_seconds * ppg.sampling_rate_hz))
+    stride = int(round(stride_seconds * ppg.sampling_rate_hz))
+    windows: list[WindowObservation] = []
+    for window_index, start in enumerate(range(0, ppg.values.size - width + 1, stride)):
+        end = start + width
+        in_window = peaks.sample_indices[
+            (peaks.sample_indices >= start) & (peaks.sample_indices < end)
+        ]
+        if in_window.size < 3:
+            continue
+        intervals = np.diff(in_window) / peaks.sampling_rate_hz
+        intervals = intervals[(intervals >= 0.25) & (intervals <= 2.4)]
+        if intervals.size < 2:
+            continue
+        windows.append(
+            WindowObservation(
+                dataset=record.dataset,
+                participant_id=record.participant_id,
+                window_index=window_index,
+                ppg=ppg.values[start:end],
+                ppg_rate_hz=ppg.sampling_rate_hz,
+                acceleration=acceleration.values[start:end],
+                acceleration_rate_hz=acceleration.sampling_rate_hz,
+                reference_heart_rate_bpm=float(60.0 / np.median(intervals)),
+            )
+        )
+    return windows
