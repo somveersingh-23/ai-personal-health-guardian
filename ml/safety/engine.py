@@ -12,6 +12,9 @@ from math import isfinite
 from typing import Iterable
 
 
+SAFETY_POLICY_VERSION = "member3-safety-rules-v1"
+
+
 class SafetyAction(str, Enum):
     NORMAL = "normal"
     OBSERVE = "observe"
@@ -79,6 +82,7 @@ class SafetyDecision:
     reason: str
     evidence: tuple[str, ...]
     requires_human_confirmation: bool
+    policy_version: str = SAFETY_POLICY_VERSION
     disclaimer: str = (
         "This is a safety-oriented health insight, not a medical diagnosis."
     )

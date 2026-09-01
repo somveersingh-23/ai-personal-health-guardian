@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from hashlib import sha256
+import json
 from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator
@@ -100,6 +102,66 @@ class GuardianProcessResponse(BaseModel):
     alert: AlertEvaluationResponse
     notifications: NotificationBatchResponse | None
     emergency_workflow: EmergencyWorkflowRecord | None
+    decision_trace: "SafetyDecisionTrace"
     processed_at: datetime
 
     model_config = {"frozen": True}
+
+
+class SafetyDecisionTrace(BaseModel):
+    """Privacy-minimized, reproducible record of one safety decision.
+
+    It deliberately contains no notification target, free-text user question,
+    or raw device payload.  Detailed measurements remain in the separately
+    consented health evidence record.
+    """
+
+    decision_id: str
+    policy_version: str
+    source_event_id: str
+    evaluated_at: datetime
+    action: SafetyAction
+    reason: str
+    requires_human_confirmation: bool
+    evidence_metrics: tuple[str, ...]
+    evidence_count: int = Field(ge=0)
+    critical_flags_count: int = Field(ge=0)
+    deviation_score: float = Field(ge=0)
+    confidence: float = Field(ge=0, le=1)
+    signal_quality: float = Field(ge=0, le=1)
+    user_confirmed_severe_symptoms: bool
+
+    model_config = {"frozen": True}
+
+
+def stable_decision_id(
+    *,
+    user_id: str,
+    event_id: str,
+    policy_version: str,
+    action: SafetyAction,
+    deviation_score: float,
+    confidence: float,
+    signal_quality: float,
+    evidence_metrics: tuple[str, ...],
+    critical_flags_count: int,
+    user_confirmed_severe_symptoms: bool,
+) -> str:
+    """Derive a stable opaque ID so a replay cannot create a second decision."""
+    payload = json.dumps(
+        {
+            "user_id": user_id,
+            "event_id": event_id,
+            "policy_version": policy_version,
+            "action": action.value,
+            "deviation_score": deviation_score,
+            "confidence": confidence,
+            "signal_quality": signal_quality,
+            "evidence_metrics": evidence_metrics,
+            "critical_flags_count": critical_flags_count,
+            "user_confirmed_severe_symptoms": user_confirmed_severe_symptoms,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return sha256(payload.encode("utf-8")).hexdigest()

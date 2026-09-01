@@ -27,6 +27,11 @@ class DataControlTests(unittest.TestCase):
         self.assertEqual(len(body["insights"]), 1)
         self.assertEqual(len(body["alerts"]), 1)
         self.assertEqual(len(body["notifications"]), 1)
+        self.assertEqual(len(body["guardian_decisions"]), 1)
+        self.assertEqual(
+            body["guardian_decisions"][0]["policy_version"],
+            "member3-safety-rules-v1",
+        )
 
     def test_purge_removes_all_user_data_and_cache(self):
         self.client.post("/api/v1/member3/guardian/process", json=self.payload())
@@ -34,13 +39,14 @@ class DataControlTests(unittest.TestCase):
         self.assertGreaterEqual(purged.json()["total_deleted"], 4)
         export = self.client.get("/api/v1/member3/data/export", params={"user_id":"privacy-user"}).json()
         self.assertTrue(all(not export[key] for key in (
-            "insights","alerts","notifications","emergency_workflows","conversations")))
+            "insights","alerts","notifications","emergency_workflows","conversations","guardian_decisions")))
         # Cache deletion means the same event can be processed as new again.
         self.assertEqual(self.client.post("/api/v1/member3/guardian/process", json=self.payload()).status_code, 200)
 
     def test_purge_is_user_scoped(self):
         self.client.post("/api/v1/member3/guardian/process", json=self.payload("u1"))
-        other = self.payload("u2"); other["event_id"] = "other-event"
+        other = self.payload("u2")
+        other["event_id"] = "other-event"
         self.client.post("/api/v1/member3/guardian/process", json=other)
         self.client.delete("/api/v1/member3/data", params={"user_id":"u1"})
         export = self.client.get("/api/v1/member3/data/export", params={"user_id":"u2"}).json()

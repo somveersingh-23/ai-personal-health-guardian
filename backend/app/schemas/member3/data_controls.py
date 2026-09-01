@@ -12,6 +12,7 @@ class Member3DataExport(BaseModel):
     notifications: list[dict]
     emergency_workflows: list[dict]
     conversations: list[dict]
+    guardian_decisions: list[dict]
 
 
 class Member3PurgeResponse(BaseModel):

@@ -86,6 +86,18 @@ class GuardianOrchestrationTests(unittest.TestCase):
         second = self.service.process(request())
         self.assertEqual(first, second)
 
+    def test_decision_trace_is_stable_and_minimizes_sensitive_data(self):
+        first = self.service.process(request(critical_flags=["validated critical pattern"]))
+        second = self.service.process(request(critical_flags=["validated critical pattern"]))
+
+        trace = first.decision_trace
+        self.assertEqual(trace, second.decision_trace)
+        self.assertEqual(trace.policy_version, "member3-safety-rules-v1")
+        self.assertEqual(trace.source_event_id, "event-1")
+        self.assertEqual(trace.evidence_metrics, ("sleep",))
+        self.assertEqual(trace.critical_flags_count, 1)
+        self.assertNotIn("caregiver", trace.model_dump_json().lower())
+
     def test_idempotency_is_user_scoped(self):
         first = self.service.process(request(user_id="u1"))
         second = self.service.process(request(user_id="u2"))
@@ -132,6 +144,7 @@ class GuardianApiTests(unittest.TestCase):
         self.assertEqual(body["safety_action"], "self_care")
         self.assertIsNotNone(body["insight"])
         self.assertTrue(body["alert"]["created"])
+        self.assertEqual(body["decision_trace"]["policy_version"], "member3-safety-rules-v1")
 
     def test_invalid_fraction_returns_422(self):
         payload = self.payload()

@@ -37,6 +37,10 @@ class DataControlService:
             notifications=[x.model_dump(mode="json") for x in self.notifications.list_notifications(user_id).notifications],
             emergency_workflows=[x.model_dump(mode="json") for x in self.emergency.list_workflows(user_id).workflows],
             conversations=[x.model_dump(mode="json") for x in self.conversations.list_conversations(user_id).conversations],
+            guardian_decisions=[
+                item.decision_trace.model_dump(mode="json")
+                for item in self.guardian.list_decisions(user_id)
+            ],
         )
 
     def purge(self, user_id: str) -> Member3PurgeResponse:

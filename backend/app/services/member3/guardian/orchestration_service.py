@@ -8,7 +8,12 @@ from typing import Callable
 
 from app.schemas.member3.alerts import AlertEvaluationRequest
 from app.schemas.member3.emergency import EmergencyStartRequest
-from app.schemas.member3.guardian import GuardianProcessRequest, GuardianProcessResponse
+from app.schemas.member3.guardian import (
+    GuardianProcessRequest,
+    GuardianProcessResponse,
+    SafetyDecisionTrace,
+    stable_decision_id,
+)
 from app.schemas.member3.insights import InsightCreateRequest
 from app.schemas.member3.notifications import NotificationCreateRequest
 from app.services.member3.guardian.alert_service import AlertService
@@ -30,6 +35,11 @@ class InMemoryGuardianOrchestrationRepository:
     def save(self, record: GuardianProcessResponse) -> None:
         with self._lock:
             self._processed[(record.user_id, record.event_id)] = record
+
+    def list_for_user(self, user_id: str) -> list[GuardianProcessResponse]:
+        with self._lock:
+            records = [record for key, record in self._processed.items() if key[0] == user_id]
+        return sorted(records, key=lambda record: (record.processed_at, record.event_id), reverse=True)
 
     def delete_for_user(self, user_id: str) -> int:
         cleaned = " ".join(user_id.split())
@@ -80,6 +90,34 @@ class GuardianOrchestrationService:
                     critical_flags=request.critical_flags,
                     user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
                 )
+            )
+            evidence_metrics = tuple(item.metric for item in request.evidence)
+            trace = SafetyDecisionTrace(
+                decision_id=stable_decision_id(
+                    user_id=request.user_id,
+                    event_id=request.event_id,
+                    policy_version=decision.policy_version,
+                    action=decision.action,
+                    deviation_score=request.deviation_score,
+                    confidence=request.confidence,
+                    signal_quality=request.signal_quality,
+                    evidence_metrics=evidence_metrics,
+                    critical_flags_count=len(request.critical_flags),
+                    user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
+                ),
+                policy_version=decision.policy_version,
+                source_event_id=request.event_id,
+                evaluated_at=self._utc(self._clock()),
+                action=decision.action,
+                reason=decision.reason,
+                requires_human_confirmation=decision.requires_human_confirmation,
+                evidence_metrics=evidence_metrics,
+                evidence_count=len(evidence_metrics),
+                critical_flags_count=len(request.critical_flags),
+                deviation_score=request.deviation_score,
+                confidence=request.confidence,
+                signal_quality=request.signal_quality,
+                user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
             )
 
             insight = self._insights.create(
@@ -140,6 +178,7 @@ class GuardianOrchestrationService:
                 alert=alert,
                 notifications=notifications,
                 emergency_workflow=emergency,
+                decision_trace=trace,
                 processed_at=self._utc(self._clock()),
             )
             self._repository.save(response)
@@ -147,6 +186,9 @@ class GuardianOrchestrationService:
 
     def purge_user_cache(self, user_id: str) -> int:
         return self._repository.delete_for_user(user_id)
+
+    def list_decisions(self, user_id: str) -> list[GuardianProcessResponse]:
+        return self._repository.list_for_user(" ".join(user_id.split()))
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

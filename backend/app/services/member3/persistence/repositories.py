@@ -170,5 +170,8 @@ class SqlGuardianOrchestrationRepository(_JsonRepository):
         row = self._get_row_by_secondary(user_id, event_id)
         return GuardianProcessResponse.model_validate_json(row.payload) if row else None
 
+    def list_for_user(self, user_id: str) -> list[GuardianProcessResponse]:
+        return self._list_models(user_id)
+
     def delete_for_user(self, user_id: str) -> int:
         return super().delete_for_user(user_id)
