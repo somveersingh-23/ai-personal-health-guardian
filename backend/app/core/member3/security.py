@@ -60,3 +60,28 @@ async def require_member3_identity(request: Request) -> Member3Identity:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot access another user's Member 3 data")
     request.state.member3_identity = identity
     return identity
+
+
+def member3_identity_from_request(request: Request) -> Member3Identity:
+    """Return the identity established by the router-level JWT dependency.
+
+    Resource-ID routes cannot infer ownership from a path parameter. They use
+    the authenticated subject rather than an owner ID supplied by the caller.
+    """
+    identity = getattr(request.state, "member3_identity", None)
+    if not isinstance(identity, Member3Identity):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated Member 3 identity required",
+        )
+    return identity
+
+
+def member3_identity_if_authenticated(request: Request) -> Member3Identity | None:
+    """Read the router-authenticated identity when hosted by the shared API.
+
+    The standalone Member 3 factory intentionally has no production auth
+    middleware and is retained only for isolated unit tests and local demos.
+    """
+    identity = getattr(request.state, "member3_identity", None)
+    return identity if isinstance(identity, Member3Identity) else None

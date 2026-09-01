@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -21,9 +22,12 @@ interface Member3Gateway {
 class Member3ApiClient(
     private val baseUrl: String,
     private val sessionManager: SessionManager? = null,
+    allowEmulatorCleartext: Boolean = false,
 ) : Member3Gateway {
+    private val configuredBaseUrl = validateBaseUrl(baseUrl, allowEmulatorCleartext)
+
     private fun request(path: String, method: String = "GET", body: JSONObject? = null): JSONObject {
-        val connection = URL("${baseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
+        val connection = URL("${configuredBaseUrl.trimEnd('/')}$path").openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = method
             connection.connectTimeout = 8_000
@@ -145,6 +149,18 @@ class Member3ApiClient(
     }
 
     private fun encoded(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
+
+    private fun validateBaseUrl(value: String, allowEmulatorCleartext: Boolean): String {
+        val normalized = value.trim().trimEnd('/')
+        val uri = runCatching { URI(normalized) }.getOrNull()
+        val isHttps = uri?.scheme.equals("https", ignoreCase = true) && !uri?.host.isNullOrBlank()
+        val isEmulatorHttp = allowEmulatorCleartext &&
+            uri?.scheme.equals("http", ignoreCase = true) && uri?.host == "10.0.2.2"
+        require(isHttps || isEmulatorHttp) {
+            "Member 3 requires an HTTPS API endpoint outside emulator debug builds"
+        }
+        return normalized
+    }
 
     private fun <T> JSONArray.mapObjects(block: (JSONObject) -> T): List<T> =
         (0 until length()).map { block(getJSONObject(it)) }

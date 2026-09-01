@@ -1,21 +1,37 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+fun buildConfigString(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val releaseApiBaseUrl = providers.gradleProperty("member3ApiBaseUrl").orNull.orEmpty()
+
 android {
     namespace = "com.healthguardian.member3"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.healthguardian.member3"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "MEMBER3_API_BASE_URL", "\"http://10.0.2.2:8000\"")
+    }
+    buildTypes {
+        debug {
+            // Cleartext is enabled only by src/debug/AndroidManifest.xml for
+            // the Android-emulator loopback host.
+            buildConfigField("String", "MEMBER3_API_BASE_URL", "\"http://10.0.2.2:8000\"")
+        }
+        release {
+            // CI may build an unsigned release with an empty value, but the
+            // client rejects it at startup. A distributable release therefore
+            // requires -Pmember3ApiBaseUrl=https://api.example.com.
+            buildConfigField("String", "MEMBER3_API_BASE_URL", buildConfigString(releaseApiBaseUrl))
+        }
     }
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }

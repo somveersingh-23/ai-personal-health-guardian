@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hmac
 import os
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
 from app.schemas.member3.notifications import (
     DeliveryReceiptRequest,
@@ -19,6 +19,7 @@ from app.services.member3.guardian.notification_service import (
     NotificationRetryLimitError,
     NotificationService,
 )
+from app.core.member3.security import member3_identity_if_authenticated
 
 router = APIRouter(prefix="/api/v1/member3/notifications", tags=["Member 3 - Notifications"])
 _service = NotificationService()
@@ -50,18 +51,22 @@ async def list_notifications(
 @router.post("/{notification_id}/dispatch", response_model=NotificationRecord)
 async def request_dispatch(
     notification_id: str,
+    request: Request,
     service: NotificationService = Depends(get_notification_service),
 ) -> NotificationRecord:
-    return _handle(lambda: service.request_dispatch(notification_id))
+    identity = member3_identity_if_authenticated(request)
+    return _handle(lambda: service.request_dispatch(notification_id, identity.user_id if identity else None))
 
 
 @router.post("/{notification_id}/receipt", response_model=NotificationRecord)
 async def record_receipt(
     notification_id: str,
     request: DeliveryReceiptRequest,
+    http_request: Request,
     service: NotificationService = Depends(get_notification_service),
 ) -> NotificationRecord:
-    return _handle(lambda: service.record_receipt(notification_id, request))
+    identity = member3_identity_if_authenticated(http_request)
+    return _handle(lambda: service.record_receipt(notification_id, request, identity.user_id if identity else None))
 
 
 @router.post("/{notification_id}/callback", response_model=NotificationRecord)
@@ -88,17 +93,21 @@ async def provider_callback(
 @router.post("/{notification_id}/retry", response_model=NotificationRecord)
 async def retry_notification(
     notification_id: str,
+    request: Request,
     service: NotificationService = Depends(get_notification_service),
 ) -> NotificationRecord:
-    return _handle(lambda: service.retry(notification_id))
+    identity = member3_identity_if_authenticated(request)
+    return _handle(lambda: service.retry(notification_id, identity.user_id if identity else None))
 
 
 @router.post("/{notification_id}/cancel", response_model=NotificationRecord)
 async def cancel_notification(
     notification_id: str,
+    request: Request,
     service: NotificationService = Depends(get_notification_service),
 ) -> NotificationRecord:
-    return _handle(lambda: service.cancel(notification_id))
+    identity = member3_identity_if_authenticated(request)
+    return _handle(lambda: service.cancel(notification_id, identity.user_id if identity else None))
 
 
 def _handle(operation):  # noqa: ANN001

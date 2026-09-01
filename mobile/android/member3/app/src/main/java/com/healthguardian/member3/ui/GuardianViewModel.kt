@@ -77,6 +77,12 @@ class GuardianViewModel(
     fun sendQuestion(question: String) {
         val clean = question.trim()
         if (clean.isEmpty() || _state.value.assistantState is LoadState.Loading) return
+        if (!sessionManager.isAuthenticated) {
+            _state.value = _state.value.copy(
+                assistantState = LoadState.Error("Please log in before asking about health data"),
+            )
+            return
+        }
         val local = AssistantMessage(UUID.randomUUID().toString(), clean, true)
         _state.value = _state.value.copy(
             messages = _state.value.messages + local,
@@ -103,6 +109,12 @@ class GuardianViewModel(
 
     fun inviteCaregiver(caregiverRef: String, label: String) {
         if (caregiverRef.isBlank() || label.isBlank()) return
+        if (!sessionManager.isAuthenticated) {
+            _state.value = _state.value.copy(
+                caregivers = LoadState.Error("Please log in before managing caregivers"),
+            )
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.inviteCaregiver(userId, caregiverRef.trim(), label.trim())
@@ -118,6 +130,12 @@ class GuardianViewModel(
 
     fun startEmergency(reason: String) {
         if (reason.isBlank()) return
+        if (!sessionManager.isAuthenticated) {
+            _state.value = _state.value.copy(
+                emergency = LoadState.Error("Please log in before starting an emergency workflow"),
+            )
+            return
+        }
         _state.value = _state.value.copy(emergency = LoadState.Loading)
         viewModelScope.launch(Dispatchers.IO) {
             try {

@@ -168,7 +168,20 @@ class AlertService:
         stored = self._repository.get(alert_id)
         if stored is None:
             raise AlertNotFoundError("Alert not found")
-        current = stored.record
+        return self._update_status(stored.record, stored, status)
+
+    def update_status_for_user(
+        self, alert_id: str, user_id: str, status: AlertStatus
+    ) -> AlertRecord:
+        stored = self._repository.get(alert_id)
+        if stored is None or stored.record.user_id != " ".join(user_id.split()):
+            # Do not reveal another user's record identifier.
+            raise AlertNotFoundError("Alert not found")
+        return self._update_status(stored.record, stored, status)
+
+    def _update_status(
+        self, current: AlertRecord, stored: _StoredAlert, status: AlertStatus
+    ) -> AlertRecord:
         if status == current.status:
             return current
         if (

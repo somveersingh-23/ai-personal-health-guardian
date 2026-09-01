@@ -150,9 +150,12 @@ class EmergencyWorkflowService:
         return record
 
     def command(
-        self, workflow_id: str, request: EmergencyCommandRequest
+        self,
+        workflow_id: str,
+        request: EmergencyCommandRequest,
+        user_id: str | None = None,
     ) -> EmergencyWorkflowRecord:
-        current = self.get(workflow_id)
+        current = self._get_owned_or_trusted(workflow_id, user_id)
         transitions = _NEXT_STATE[request.command]
         target = transitions.get(current.state)
         if target is None:
@@ -192,6 +195,18 @@ class EmergencyWorkflowService:
         if record is None:
             raise EmergencyWorkflowNotFoundError("Emergency workflow not found")
         return record
+
+    def get_for_user(self, workflow_id: str, user_id: str) -> EmergencyWorkflowRecord:
+        record = self.get(workflow_id)
+        if record.user_id != " ".join(user_id.split()):
+            # Do not reveal another user's emergency workflow identifier.
+            raise EmergencyWorkflowNotFoundError("Emergency workflow not found")
+        return record
+
+    def _get_owned_or_trusted(
+        self, workflow_id: str, user_id: str | None
+    ) -> EmergencyWorkflowRecord:
+        return self.get(workflow_id) if user_id is None else self.get_for_user(workflow_id, user_id)
 
     def list_workflows(self, user_id: str) -> EmergencyListResponse:
         cleaned = " ".join(user_id.split())

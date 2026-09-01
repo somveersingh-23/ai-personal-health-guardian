@@ -130,6 +130,13 @@ class InsightService:
             raise InsightNotFoundError("Insight not found")
         return record
 
+    def get_for_user(self, insight_id: str, user_id: str) -> InsightRecord:
+        record = self.get(insight_id)
+        if record.user_id != " ".join(user_id.split()):
+            # Do not reveal another user's record identifier.
+            raise InsightNotFoundError("Insight not found")
+        return record
+
     def list_insights(self, user_id: str) -> InsightListResponse:
         cleaned = " ".join(user_id.split())
         if not cleaned:
@@ -139,6 +146,14 @@ class InsightService:
 
     def update_status(self, insight_id: str, status: InsightStatus) -> InsightRecord:
         current = self.get(insight_id)
+        return self._update_status(current, status)
+
+    def update_status_for_user(
+        self, insight_id: str, user_id: str, status: InsightStatus
+    ) -> InsightRecord:
+        return self._update_status(self.get_for_user(insight_id, user_id), status)
+
+    def _update_status(self, current: InsightRecord, status: InsightStatus) -> InsightRecord:
         if status == current.status:
             return current
         if status not in _ALLOWED_TRANSITIONS[current.status]:

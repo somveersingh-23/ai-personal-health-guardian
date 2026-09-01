@@ -124,8 +124,10 @@ class NotificationService:
             count=len(created),
         )
 
-    def request_dispatch(self, notification_id: str) -> NotificationRecord:
-        current = self.get(notification_id)
+    def request_dispatch(
+        self, notification_id: str, user_id: str | None = None
+    ) -> NotificationRecord:
+        current = self._get_owned_or_trusted(notification_id, user_id)
         if current.status != NotificationStatus.QUEUED:
             raise InvalidNotificationTransitionError(
                 f"Cannot request dispatch while status is {current.status.value}"
@@ -144,9 +146,12 @@ class NotificationService:
         return updated
 
     def record_receipt(
-        self, notification_id: str, receipt: DeliveryReceiptRequest
+        self,
+        notification_id: str,
+        receipt: DeliveryReceiptRequest,
+        user_id: str | None = None,
     ) -> NotificationRecord:
-        current = self.get(notification_id)
+        current = self._get_owned_or_trusted(notification_id, user_id)
         if current.status != NotificationStatus.DISPATCH_REQUESTED:
             raise InvalidNotificationTransitionError(
                 "A delivery receipt requires dispatch_requested status"
@@ -167,8 +172,8 @@ class NotificationService:
         self._repository.save(updated)
         return updated
 
-    def retry(self, notification_id: str) -> NotificationRecord:
-        current = self.get(notification_id)
+    def retry(self, notification_id: str, user_id: str | None = None) -> NotificationRecord:
+        current = self._get_owned_or_trusted(notification_id, user_id)
         if current.status != NotificationStatus.FAILED:
             raise InvalidNotificationTransitionError("Only failed notifications can retry")
         if current.attempt_count >= self.MAX_ATTEMPTS:
@@ -184,8 +189,8 @@ class NotificationService:
         self._repository.save(updated)
         return updated
 
-    def cancel(self, notification_id: str) -> NotificationRecord:
-        current = self.get(notification_id)
+    def cancel(self, notification_id: str, user_id: str | None = None) -> NotificationRecord:
+        current = self._get_owned_or_trusted(notification_id, user_id)
         if current.status not in {NotificationStatus.QUEUED, NotificationStatus.FAILED}:
             raise InvalidNotificationTransitionError(
                 f"Cannot cancel notification while status is {current.status.value}"
@@ -204,6 +209,18 @@ class NotificationService:
         if record is None:
             raise NotificationNotFoundError("Notification not found")
         return record
+
+    def get_for_user(self, notification_id: str, user_id: str) -> NotificationRecord:
+        record = self.get(notification_id)
+        if record.user_id != " ".join(user_id.split()):
+            # Do not reveal another user's notification identifier.
+            raise NotificationNotFoundError("Notification not found")
+        return record
+
+    def _get_owned_or_trusted(
+        self, notification_id: str, user_id: str | None
+    ) -> NotificationRecord:
+        return self.get(notification_id) if user_id is None else self.get_for_user(notification_id, user_id)
 
     def list_notifications(self, user_id: str) -> NotificationListResponse:
         cleaned = " ".join(user_id.split())

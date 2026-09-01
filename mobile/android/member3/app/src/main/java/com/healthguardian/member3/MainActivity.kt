@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
         val apiClient = Member3ApiClient(
             baseUrl = BuildConfig.MEMBER3_API_BASE_URL,
             sessionManager = sessionManager,
+            allowEmulatorCleartext = BuildConfig.DEBUG,
         )
         val repository = Member3Repository(apiClient)
         setContent {

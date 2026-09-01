@@ -1,6 +1,6 @@
 """Member 3 emergency-workflow API; no external emergency connector is called."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.schemas.member3.emergency import (
     EmergencyCommandRequest,
@@ -14,6 +14,7 @@ from app.services.member3.guardian.emergency_service import (
     InvalidEmergencyTransitionError,
     MissingCaregiverContactError,
 )
+from app.core.member3.security import member3_identity_if_authenticated
 
 router = APIRouter(prefix="/api/v1/member3/emergency", tags=["Member 3 - Emergency"])
 _service = EmergencyWorkflowService()
@@ -35,10 +36,12 @@ async def start_workflow(
 async def apply_command(
     workflow_id: str,
     request: EmergencyCommandRequest,
+    http_request: Request,
     service: EmergencyWorkflowService = Depends(get_emergency_service),
 ) -> EmergencyWorkflowRecord:
     try:
-        return service.command(workflow_id, request)
+        identity = member3_identity_if_authenticated(http_request)
+        return service.command(workflow_id, request, identity.user_id if identity else None)
     except EmergencyWorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except (InvalidEmergencyTransitionError, MissingCaregiverContactError) as exc:
@@ -48,10 +51,12 @@ async def apply_command(
 @router.get("/workflows/{workflow_id}", response_model=EmergencyWorkflowRecord)
 async def get_workflow(
     workflow_id: str,
+    request: Request,
     service: EmergencyWorkflowService = Depends(get_emergency_service),
 ) -> EmergencyWorkflowRecord:
     try:
-        return service.get(workflow_id)
+        identity = member3_identity_if_authenticated(request)
+        return service.get_for_user(workflow_id, identity.user_id) if identity else service.get(workflow_id)
     except EmergencyWorkflowNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

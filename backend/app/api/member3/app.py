@@ -166,6 +166,22 @@ def create_member3_app(
     ):
         app.include_router(router)
 
+    configure_member3_services(app, services)
+
+    @app.get("/api/v1/member3/health", tags=["Member 3 - Development"])
+    async def member3_health() -> dict[str, object]:
+        return {
+            "module": "Member 3 - AI Guardian and Safety",
+            "status": "running",
+            "external_connectors_enabled": False,
+            "persistence": "in_memory",
+        }
+
+    return app
+
+
+def configure_member3_services(app: FastAPI, services: Member3ServiceContainer) -> None:
+    """Inject one Member 3 service graph into any host FastAPI application."""
     app.dependency_overrides[get_explanation_service] = lambda: services.explanation
     app.dependency_overrides[get_retrieval_service] = lambda: services.retrieval
     app.dependency_overrides[get_insight_service] = lambda: services.insights
@@ -179,14 +195,3 @@ def create_member3_app(
     app.dependency_overrides[get_guardian_service] = lambda: services.guardian
 
     app.state.member3_services = services
-
-    @app.get("/api/v1/member3/health", tags=["Member 3 - Development"])
-    async def member3_health() -> dict[str, object]:
-        return {
-            "module": "Member 3 - AI Guardian and Safety",
-            "status": "running",
-            "external_connectors_enabled": False,
-            "persistence": "in_memory",
-        }
-
-    return app

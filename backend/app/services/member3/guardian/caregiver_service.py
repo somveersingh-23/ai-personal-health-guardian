@@ -3,14 +3,26 @@
 from datetime import datetime, timezone
 from threading import RLock
 from app.schemas.member3.caregivers import (
-    CaregiverDecision, CaregiverDecisionRequest, CaregiverLink,
-    CaregiverLinkCreate, CaregiverLinkStatus, CaregiverListResponse, new_link_id,
+    CaregiverDecision,
+    CaregiverDecisionRequest,
+    CaregiverLink,
+    CaregiverLinkCreate,
+    CaregiverLinkStatus,
+    CaregiverListResponse,
+    new_link_id,
 )
 
 
-class CaregiverLinkNotFoundError(LookupError): pass
-class CaregiverAuthorizationError(PermissionError): pass
-class InvalidCaregiverTransitionError(ValueError): pass
+class CaregiverLinkNotFoundError(LookupError):
+    pass
+
+
+class CaregiverAuthorizationError(PermissionError):
+    pass
+
+
+class InvalidCaregiverTransitionError(ValueError):
+    pass
 
 
 class InMemoryCaregiverRepository:
@@ -28,7 +40,9 @@ class InMemoryCaregiverRepository:
         with self._lock:
             return self._links.get(link_id)
 
-    def get_by_pair(self, user_id: str, caregiver_user_ref: str) -> CaregiverLink | None:
+    def get_by_pair(
+        self, user_id: str, caregiver_user_ref: str
+    ) -> CaregiverLink | None:
         with self._lock:
             link_id = self._pair_index.get((user_id, caregiver_user_ref))
             return self._links.get(link_id) if link_id else None
@@ -55,15 +69,23 @@ class CaregiverService:
         if request.user_id == request.caregiver_user_ref:
             raise ValueError("A user cannot be their own caregiver")
         with self._lock:
-            existing = self._repository.get_by_pair(request.user_id, request.caregiver_user_ref)
-            if existing and existing.status in {CaregiverLinkStatus.PENDING, CaregiverLinkStatus.ACTIVE}:
+            existing = self._repository.get_by_pair(
+                request.user_id, request.caregiver_user_ref
+            )
+            if existing and existing.status in {
+                CaregiverLinkStatus.PENDING,
+                CaregiverLinkStatus.ACTIVE,
+            }:
                 return existing
             now = datetime.now(timezone.utc)
             link = CaregiverLink(
-                link_id=new_link_id(), user_id=request.user_id,
+                link_id=new_link_id(),
+                user_id=request.user_id,
                 caregiver_user_ref=request.caregiver_user_ref,
                 relationship_label=request.relationship_label,
-                status=CaregiverLinkStatus.PENDING, created_at=now, updated_at=now,
+                status=CaregiverLinkStatus.PENDING,
+                created_at=now,
+                updated_at=now,
             )
             self._repository.save(link)
             return link
@@ -71,28 +93,53 @@ class CaregiverService:
     def decide(self, link_id: str, request: CaregiverDecisionRequest) -> CaregiverLink:
         with self._lock:
             link = self._repository.get(link_id)
-            if link is None: raise CaregiverLinkNotFoundError("Caregiver link not found")
-            if request.decision in {CaregiverDecision.ACCEPT, CaregiverDecision.DECLINE}:
+            if link is None:
+                raise CaregiverLinkNotFoundError("Caregiver link not found")
+            if request.decision in {
+                CaregiverDecision.ACCEPT,
+                CaregiverDecision.DECLINE,
+            }:
                 if request.actor_user_ref != link.caregiver_user_ref:
-                    raise CaregiverAuthorizationError("Only the invited caregiver may accept or decline")
+                    raise CaregiverAuthorizationError(
+                        "Only the invited caregiver may accept or decline"
+                    )
                 if link.status != CaregiverLinkStatus.PENDING:
-                    raise InvalidCaregiverTransitionError("Only pending links may be accepted or declined")
-                status = CaregiverLinkStatus.ACTIVE if request.decision == CaregiverDecision.ACCEPT else CaregiverLinkStatus.DECLINED
+                    raise InvalidCaregiverTransitionError(
+                        "Only pending links may be accepted or declined"
+                    )
+                status = (
+                    CaregiverLinkStatus.ACTIVE
+                    if request.decision == CaregiverDecision.ACCEPT
+                    else CaregiverLinkStatus.DECLINED
+                )
             else:
-                if request.actor_user_ref not in {link.user_id, link.caregiver_user_ref}:
-                    raise CaregiverAuthorizationError("Only a linked party may revoke consent")
+                if request.actor_user_ref not in {
+                    link.user_id,
+                    link.caregiver_user_ref,
+                }:
+                    raise CaregiverAuthorizationError(
+                        "Only a linked party may revoke consent"
+                    )
                 if link.status != CaregiverLinkStatus.ACTIVE:
-                    raise InvalidCaregiverTransitionError("Only active links may be revoked")
+                    raise InvalidCaregiverTransitionError(
+                        "Only active links may be revoked"
+                    )
                 status = CaregiverLinkStatus.REVOKED
-            updated = link.model_copy(update={"status": status, "updated_at": datetime.now(timezone.utc)})
+            updated = link.model_copy(
+                update={"status": status, "updated_at": datetime.now(timezone.utc)}
+            )
             self._repository.save(updated)
             return updated
 
     def list_for_user(self, user_id: str) -> CaregiverListResponse:
         cleaned = " ".join(user_id.split())
         links = self._repository.list_for_user(cleaned)
-        links_sorted = sorted(links, key=lambda x: (x.created_at, x.link_id), reverse=True)
-        return CaregiverListResponse(user_id=cleaned, links=links_sorted, count=len(links_sorted))
+        links_sorted = sorted(
+            links, key=lambda x: (x.created_at, x.link_id), reverse=True
+        )
+        return CaregiverListResponse(
+            user_id=cleaned, links=links_sorted, count=len(links_sorted)
+        )
 
     def is_active(self, user_id: str, caregiver_ref: str) -> bool:
         link = self._repository.get_by_pair(user_id, caregiver_ref)

@@ -1,6 +1,6 @@
 """Member 3 structured health-insight API."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.schemas.member3.insights import (
     InsightCreateRequest,
@@ -13,6 +13,7 @@ from app.services.member3.guardian.insight_service import (
     InsightService,
     InvalidInsightTransitionError,
 )
+from app.core.member3.security import member3_identity_if_authenticated
 
 router = APIRouter(prefix="/api/v1/member3/insights", tags=["Member 3 - Insights"])
 _service = InsightService()
@@ -44,10 +45,12 @@ async def list_insights(
 @router.get("/{insight_id}", response_model=InsightRecord)
 async def get_insight(
     insight_id: str,
+    request: Request,
     service: InsightService = Depends(get_insight_service),
 ) -> InsightRecord:
     try:
-        return service.get(insight_id)
+        identity = member3_identity_if_authenticated(request)
+        return service.get_for_user(insight_id, identity.user_id) if identity else service.get(insight_id)
     except InsightNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -56,10 +59,15 @@ async def get_insight(
 async def update_insight_status(
     insight_id: str,
     request: InsightStatusUpdateRequest,
+    http_request: Request,
     service: InsightService = Depends(get_insight_service),
 ) -> InsightRecord:
     try:
-        return service.update_status(insight_id, request.status)
+        identity = member3_identity_if_authenticated(http_request)
+        return (
+            service.update_status_for_user(insight_id, identity.user_id, request.status)
+            if identity else service.update_status(insight_id, request.status)
+        )
     except InsightNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except InvalidInsightTransitionError as exc:
