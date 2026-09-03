@@ -1,6 +1,9 @@
-# Environment
+# =========================
+# Environment / Secrets
+# =========================
 .env
-*.env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -8,16 +11,40 @@ __pycache__/
 .venv/
 venv/
 
-# Android
+# Android / Gradle
 .gradle/
+build/
+*/build/
 local.properties
-/build/
-.cxx/
 
 # IDE
 .idea/
-.vscode/
+*.iml
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Database / local data
+*.db
+*.sqlite
+*.sqlite3
+
+# ML / generated files
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+
+# Secrets / certificates
+*.pem
+*.key
+*.keystore
+*.jks
+
+# Node
+node_modules/
