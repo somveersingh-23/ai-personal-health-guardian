@@ -10,6 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.member1.health_profile import router as health_profile_router
 from app.api.member2 import preview_router, production_router
+from app.api.member3.app import build_service_container, configure_member3_services
+from app.api.member3.registration import register_member3_routers
 from app.core.config import Settings
 from app.core.config import settings as default_settings
 from app.database import database as database_module
@@ -110,6 +112,7 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
                 SensorIngestionAudit,
                 SourceTombstone,
             )
+            from app.models.member3 import Member3GuardianRecord  # noqa: F401
 
             async with database_module.get_engine().begin() as connection:
                 await connection.run_sync(Base.metadata.create_all)
@@ -131,12 +134,20 @@ def create_app(app_settings: Settings | None = None) -> FastAPI:
     application.include_router(production_router)
     if resolved.enable_preview_endpoints:
         application.include_router(preview_router)
+    # Member 3 stays behind its own JWT dependency; the guardian must never
+    # use untrusted request data as an authenticated user identity.
+    configure_member3_services(application, build_service_container())
+    register_member3_routers(application)
 
     @application.get("/")
     async def root() -> dict[str, object]:
         return {
             "project": "AI Personal Health Guardian",
-            "modules": ["member1-digital-twin", "member2-sensor-intelligence"],
+            "modules": [
+                "member1-digital-twin",
+                "member2-sensor-intelligence",
+                "member3-ai-guardian",
+            ],
             "status": "running",
             "non_diagnostic": True,
         }

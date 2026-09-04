@@ -1,0 +1,197 @@
+"""Connect all Member 3 modules without changing upstream risk decisions."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from threading import RLock
+from typing import Callable
+
+from app.schemas.member3.alerts import AlertEvaluationRequest
+from app.schemas.member3.emergency import EmergencyStartRequest
+from app.schemas.member3.guardian import (
+    GuardianProcessRequest,
+    GuardianProcessResponse,
+    SafetyDecisionTrace,
+    stable_decision_id,
+)
+from app.schemas.member3.insights import InsightCreateRequest
+from app.schemas.member3.notifications import NotificationCreateRequest
+from app.services.member3.guardian.alert_service import AlertService
+from app.services.member3.guardian.emergency_service import EmergencyWorkflowService
+from app.services.member3.guardian.insight_service import InsightService
+from app.services.member3.guardian.notification_service import NotificationService
+from ml.safety import SafetyAction, SafetyEngine, SafetyInput
+
+
+class InMemoryGuardianOrchestrationRepository:
+    def __init__(self) -> None:
+        self._processed: dict[tuple[str, str], GuardianProcessResponse] = {}
+        self._lock = RLock()
+
+    def get(self, user_id: str, event_id: str) -> GuardianProcessResponse | None:
+        with self._lock:
+            return self._processed.get((user_id, event_id))
+
+    def save(self, record: GuardianProcessResponse) -> None:
+        with self._lock:
+            self._processed[(record.user_id, record.event_id)] = record
+
+    def list_for_user(self, user_id: str) -> list[GuardianProcessResponse]:
+        with self._lock:
+            records = [record for key, record in self._processed.items() if key[0] == user_id]
+        return sorted(records, key=lambda record: (record.processed_at, record.event_id), reverse=True)
+
+    def delete_for_user(self, user_id: str) -> int:
+        cleaned = " ".join(user_id.split())
+        with self._lock:
+            keys = [key for key in self._processed if key[0] == cleaned]
+            for key in keys:
+                self._processed.pop(key)
+            return len(keys)
+
+
+class GuardianOrchestrationService:
+    """Run the deterministic Member 3 product loop once per user event."""
+
+    def __init__(
+        self,
+        safety_engine: SafetyEngine | None = None,
+        insight_service: InsightService | None = None,
+        alert_service: AlertService | None = None,
+        notification_service: NotificationService | None = None,
+        emergency_service: EmergencyWorkflowService | None = None,
+        clock: Callable[[], datetime] | None = None,
+        repository: InMemoryGuardianOrchestrationRepository | None = None,
+    ) -> None:
+        self._safety = safety_engine or SafetyEngine()
+        self._insights = insight_service or InsightService()
+        self._alerts = alert_service or AlertService()
+        self._notifications = notification_service or NotificationService()
+        self._emergency = emergency_service or EmergencyWorkflowService()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._repository = repository or InMemoryGuardianOrchestrationRepository()
+        self._lock = RLock()
+
+    def process(self, request: GuardianProcessRequest) -> GuardianProcessResponse:
+        with self._lock:
+            existing = self._repository.get(request.user_id, request.event_id)
+            if existing is not None:
+                return existing
+
+            evidence_text = tuple(
+                f"{item.metric}: {item.direction}" for item in request.evidence
+            )
+            decision = self._safety.evaluate(
+                SafetyInput.from_evidence(
+                    deviation_score=request.deviation_score,
+                    confidence=request.confidence,
+                    signal_quality=request.signal_quality,
+                    evidence=evidence_text,
+                    critical_flags=request.critical_flags,
+                    user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
+                )
+            )
+            evidence_metrics = tuple(item.metric for item in request.evidence)
+            trace = SafetyDecisionTrace(
+                decision_id=stable_decision_id(
+                    user_id=request.user_id,
+                    event_id=request.event_id,
+                    policy_version=decision.policy_version,
+                    action=decision.action,
+                    deviation_score=request.deviation_score,
+                    confidence=request.confidence,
+                    signal_quality=request.signal_quality,
+                    evidence_metrics=evidence_metrics,
+                    critical_flags_count=len(request.critical_flags),
+                    user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
+                ),
+                policy_version=decision.policy_version,
+                source_event_id=request.event_id,
+                evaluated_at=self._utc(self._clock()),
+                action=decision.action,
+                reason=decision.reason,
+                requires_human_confirmation=decision.requires_human_confirmation,
+                evidence_metrics=evidence_metrics,
+                evidence_count=len(evidence_metrics),
+                critical_flags_count=len(request.critical_flags),
+                deviation_score=request.deviation_score,
+                confidence=request.confidence,
+                signal_quality=request.signal_quality,
+                user_confirmed_severe_symptoms=request.user_confirmed_severe_symptoms,
+            )
+
+            insight = self._insights.create(
+                InsightCreateRequest(
+                    user_id=request.user_id,
+                    source_event_id=request.event_id,
+                    insight_type=request.insight_type,
+                    safety_action=decision.action,
+                    safety_reason=decision.reason,
+                    evidence=request.evidence,
+                )
+            )
+
+            alert = self._alerts.evaluate(
+                AlertEvaluationRequest(
+                    user_id=request.user_id,
+                    event_id=request.event_id,
+                    safety_action=decision.action,
+                    safety_reason=decision.reason,
+                    evidence=list(decision.evidence) or list(evidence_text),
+                    occurred_at=request.occurred_at,
+                )
+            )
+
+            notifications = None
+            emergency = None
+            if alert.created and alert.alert is not None:
+                notifications = self._notifications.create(
+                    NotificationCreateRequest(
+                        user_id=request.user_id,
+                        source_event_id=request.event_id,
+                        title=alert.alert.title,
+                        body=alert.alert.message,
+                        priority=alert.alert.priority,
+                        channels=request.notification_channels,
+                        consented_channels=request.consented_channels,
+                        channel_targets=request.channel_targets,
+                    )
+                )
+                if decision.action == SafetyAction.EMERGENCY_ESCALATION:
+                    emergency = self._emergency.start(
+                        EmergencyStartRequest(
+                            user_id=request.user_id,
+                            alert_id=alert.alert.alert_id,
+                            safety_action=decision.action,
+                            safety_reason=decision.reason,
+                            evidence=list(decision.evidence) or list(evidence_text),
+                            caregiver_contact_id=request.caregiver_contact_id,
+                        )
+                    )
+
+            response = GuardianProcessResponse(
+                user_id=request.user_id,
+                event_id=request.event_id,
+                safety_action=decision.action,
+                safety_reason=decision.reason,
+                insight=insight,
+                alert=alert,
+                notifications=notifications,
+                emergency_workflow=emergency,
+                decision_trace=trace,
+                processed_at=self._utc(self._clock()),
+            )
+            self._repository.save(response)
+            return response
+
+    def purge_user_cache(self, user_id: str) -> int:
+        return self._repository.delete_for_user(user_id)
+
+    def list_decisions(self, user_id: str) -> list[GuardianProcessResponse]:
+        return self._repository.list_for_user(" ".join(user_id.split()))
+
+    @staticmethod
+    def _utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
