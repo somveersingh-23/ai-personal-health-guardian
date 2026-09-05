@@ -1613,4 +1613,4 @@ PROTECT
 
 ## 📚 SOURCE
 
-The project's core concept is based on the provided **AI Personal Health Guardian** concept document, including its Personal Health Digital Twin, multimodal sensing, safety architecture, privacy principles and prototype roadmap.
+The project's core concept is based on the provided **AI Personal Health Guardian** concept document, including its Personal Health Digital Twin, multimodal sensing, safety architecture, privacy principles and prototype roadmap..
