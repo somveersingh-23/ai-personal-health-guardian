@@ -17,10 +17,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+
 engine = create_async_engine(
     settings.database_url,
     echo=True,
 )
+
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -31,4 +33,4 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db():
     async with AsyncSessionLocal() as session:
-        yield sessionc
+        yield session

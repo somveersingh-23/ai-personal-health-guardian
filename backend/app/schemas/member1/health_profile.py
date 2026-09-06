@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 
 
 class HealthProfileCreate(BaseModel):
-
     user_id: int
 
     age: int | None = Field(
@@ -37,11 +36,10 @@ class HealthProfileCreate(BaseModel):
 
 
 class HealthProfileResponse(HealthProfileCreate):
-
     id: int
     created_at: datetime
     updated_at: datetime
 
     model_config = {
-        "from_attributes": True
+        "from_attributes": True,
     }
