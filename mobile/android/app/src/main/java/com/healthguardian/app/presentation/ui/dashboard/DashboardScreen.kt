@@ -1,18 +1,40 @@
 package com.healthguardian.app.presentation.ui.dashboard
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material3.*
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,99 +43,103 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.healthguardian.app.core.ui.theme.*
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.healthguardian.app.presentation.viewmodel.DigitalTwinViewModel
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(
+    digitalTwinViewModel: DigitalTwinViewModel = viewModel()
+) {
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
     ) {
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = Spacing.md,
-                end = Spacing.md,
-                top = 16.dp, // Safe area for status bar
-                bottom = 90.dp // Space for bottom nav
+                start = 16.dp,
+                end = 16.dp,
+                top = 16.dp,
+                bottom = 100.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+
+            // -------------------------------------------------
             // TOP BAR
+            // -------------------------------------------------
+
             item {
                 DashboardTopBar()
             }
 
+            // -------------------------------------------------
             // GREETING
+            // -------------------------------------------------
+
             item {
                 GreetingSection()
             }
 
+            // -------------------------------------------------
             // HEALTH SCORE
+            // -------------------------------------------------
+
             item {
                 HealthScoreCard()
             }
 
-            // HEALTH OVERVIEW
+            // -------------------------------------------------
+            // PERSONAL HEALTH DIGITAL TWIN
+            // -------------------------------------------------
+
             item {
-                SectionHeader(
-                    title = "Health Overview",
-                    action = "View all"
+
+                Text(
+                    text = "Your Health Intelligence",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Spacer(
+                    modifier = Modifier.height(10.dp)
+                )
+
+                DigitalTwinSection(
+                    viewModel = digitalTwinViewModel
                 )
             }
 
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    contentPadding = PaddingValues(end = Spacing.sm)
-                ) {
-                    items(4) { index ->
-                        HealthMetricCard(
-                            icon = when (index) {
-                                0 -> Icons.Default.Favorite
-                                1 -> Icons.Default.Bedtime
-                                2 -> Icons.Default.DirectionsWalk
-                                else -> Icons.Default.MonitorWeight
-                            },
-                            metric = when (index) {
-                                0 -> "Heart Rate"
-                                1 -> "Sleep"
-                                2 -> "Steps"
-                                else -> "Weight"
-                            },
-                            value = when (index) {
-                                0 -> "72"
-                                1 -> "7.5"
-                                2 -> "8,432"
-                                else -> "70"
-                            },
-                            unit = when (index) {
-                                0 -> "bpm"
-                                1 -> "hrs"
-                                2 -> "steps"
-                                else -> "kg"
-                            }
-                        )
-                    }
-                }
-            }
-
+            // -------------------------------------------------
             // AI GUARDIAN
+            // -------------------------------------------------
+
             item {
                 AIGuardianCard()
             }
 
+            // -------------------------------------------------
             // QUICK ACTIONS
+            // -------------------------------------------------
+
             item {
-                SectionHeader(title = "Quick Actions")
+                SectionHeader(
+                    title = "Quick Actions"
+                )
             }
 
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+
                     QuickActionButton(
                         icon = Icons.Default.Add,
                         label = "Add Record",
@@ -134,62 +160,47 @@ fun DashboardScreen() {
                 }
             }
 
-            // RECENT ACTIVITY
-            item {
-                SectionHeader(
-                    title = "Recent Activity",
-                    action = "See all"
-                )
-            }
+            // -------------------------------------------------
+            // HEALTH DATA NOTICE
+            // -------------------------------------------------
 
-            items(3) { index ->
-                RecentActivityCard(
-                    icon = when (index) {
-                        0 -> Icons.Default.Favorite
-                        1 -> Icons.Default.DirectionsWalk
-                        else -> Icons.Default.Bedtime
-                    },
-                    title = when (index) {
-                        0 -> "Heart Rate Recorded"
-                        1 -> "Daily Steps"
-                        else -> "Sleep Tracked"
-                    },
-                    subtitle = when (index) {
-                        0 -> "72 bpm • Today, 9:42 AM"
-                        1 -> "8,432 steps • Today"
-                        else -> "7.5 hrs • Last night"
-                    }
-                )
+            item {
+                DevelopmentDataNotice()
             }
         }
     }
 }
 
-// ═════════════════════════════════════════════════════
-// TOP BAR - FIXED SPACING & PROFESSIONAL
-// ═════════════════════════════════════════════════════
+
+// ============================================================
+// TOP BAR
+// ============================================================
 
 @Composable
 fun DashboardTopBar() {
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Profile Section
+
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
+
             Surface(
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(46.dp),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Box(contentAlignment = Alignment.Center) {
+
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Profile",
@@ -199,17 +210,23 @@ fun DashboardTopBar() {
                 }
             }
 
-            // Text
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
+            Spacer(
+                modifier = Modifier.width(12.dp)
+            )
+
+            Column {
+
                 Text(
                     text = "Health Guardian",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(
+                    modifier = Modifier.height(2.dp)
                 )
 
                 Text(
@@ -222,41 +239,45 @@ fun DashboardTopBar() {
             }
         }
 
-        // Notification Button
         Surface(
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier.size(44.dp),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant
         ) {
+
             IconButton(
-                onClick = { },
-                modifier = Modifier.padding(4.dp)
+                onClick = { }
             ) {
+
                 Icon(
                     imageVector = Icons.Outlined.Notifications,
                     contentDescription = "Notifications",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
 }
 
-// ═════════════════════════════════════════════════════
-// GREETING SECTION
-// ═════════════════════════════════════════════════════
+
+// ============================================================
+// GREETING
+// ============================================================
 
 @Composable
 fun GreetingSection() {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+
+    Column {
+
         Text(
-            text = "Good Morning, User 👋",
+            text = "Good Morning 👋",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
+        )
+
+        Spacer(
+            modifier = Modifier.height(5.dp)
         )
 
         Text(
@@ -267,38 +288,46 @@ fun GreetingSection() {
     }
 }
 
-// ═════════════════════════════════════════════════════
-// HEALTH SCORE CARD
-// ═════════════════════════════════════════════════════
+
+// ============================================================
+// HEALTH SCORE
+// ============================================================
 
 @Composable
 fun HealthScoreCard() {
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CornerRadius.xl),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        )
     ) {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.lg),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Score Circle
+
             Box(
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(78.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(
+                        MaterialTheme.colorScheme.primary
+                    ),
                 contentAlignment = Alignment.Center
             ) {
+
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
                     Text(
                         text = "86",
                         style = MaterialTheme.typography.headlineMedium,
@@ -314,34 +343,47 @@ fun HealthScoreCard() {
                 }
             }
 
-            Spacer(modifier = Modifier.width(Spacing.lg))
+            Spacer(
+                modifier = Modifier.width(18.dp)
+            )
 
-            // Info
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                modifier = Modifier.weight(1f)
             ) {
+
                 Text(
                     text = "Today's Health Score",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
 
+                Spacer(
+                    modifier = Modifier.height(5.dp)
+                )
+
                 Text(
-                    text = "You're doing great today!",
+                    text = "Your current health indicators look stable.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                Spacer(
+                    modifier = Modifier.height(7.dp)
+                )
+
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+
                     Icon(
                         imageVector = Icons.Default.TrendingUp,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(17.dp)
+                    )
+
+                    Spacer(
+                        modifier = Modifier.width(4.dp)
                     )
 
                     Text(
@@ -356,189 +398,133 @@ fun HealthScoreCard() {
     }
 }
 
-// ═════════════════════════════════════════════════════
+
+// ============================================================
 // SECTION HEADER
-// ═════════════════════════════════════════════════════
+// ============================================================
 
 @Composable
 fun SectionHeader(
     title: String,
     action: String? = null
 ) {
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
 
         if (action != null) {
-            TextButton(
-                onClick = { },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = action,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+
+            Text(
+                text = action,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
 
-// ═════════════════════════════════════════════════════
-// HEALTH METRIC CARD - OPTIMIZED SIZE
-// ═════════════════════════════════════════════════════
 
-@Composable
-fun HealthMetricCard(
-    icon: ImageVector,
-    metric: String,
-    value: String,
-    unit: String
-) {
-    Card(
-        modifier = Modifier
-            .width(145.dp)
-            .height(135.dp),
-        shape = RoundedCornerShape(CornerRadius.lg),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(Spacing.md),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Icon Container
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = RoundedCornerShape(CornerRadius.md),
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = metric,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            // Values
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = metric,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = value,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-
-                    Text(
-                        text = unit,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ═════════════════════════════════════════════════════
-// AI GUARDIAN CARD
-// ═════════════════════════════════════════════════════
+// ============================================================
+// AI GUARDIAN
+// ============================================================
 
 @Composable
 fun AIGuardianCard() {
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CornerRadius.xl),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp
+        )
     ) {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.lg),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // AI Icon
+
             Surface(
-                modifier = Modifier.size(52.dp),
+                modifier = Modifier.size(54.dp),
                 shape = CircleShape,
-                color = TealPrimary
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Box(contentAlignment = Alignment.Center) {
+
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+
                     Icon(
                         imageVector = Icons.Default.SmartToy,
                         contentDescription = "AI Health Guardian",
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(Spacing.md))
+            Spacer(
+                modifier = Modifier.width(14.dp)
+            )
 
-            // Content
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                modifier = Modifier.weight(1f)
             ) {
+
                 Text(
                     text = "AI Health Guardian",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
 
+                Spacer(
+                    modifier = Modifier.height(4.dp)
+                )
+
                 Text(
-                    text = "Ask questions & get personalized guidance.",
+                    text = "Ask questions and get personalized health guidance.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(
+                    modifier = Modifier.height(10.dp)
+                )
 
                 Button(
                     onClick = { },
-                    shape = RoundedCornerShape(CornerRadius.md),
+                    shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(
-                        horizontal = Spacing.md,
-                        vertical = Spacing.sm
+                        horizontal = 14.dp,
+                        vertical = 8.dp
                     )
                 ) {
-                    Text(text = "Ask AI")
-                    Spacer(modifier = Modifier.width(Spacing.xs))
+
+                    Text(
+                        text = "Ask AI"
+                    )
+
+                    Spacer(
+                        modifier = Modifier.width(5.dp)
+                    )
+
                     Icon(
                         imageVector = Icons.Default.ArrowForward,
                         contentDescription = null,
@@ -550,9 +536,10 @@ fun AIGuardianCard() {
     }
 }
 
-// ═════════════════════════════════════════════════════
-// QUICK ACTION BUTTON
-// ═════════════════════════════════════════════════════
+
+// ============================================================
+// QUICK ACTION
+// ============================================================
 
 @Composable
 fun QuickActionButton(
@@ -560,28 +547,37 @@ fun QuickActionButton(
     label: String,
     modifier: Modifier = Modifier
 ) {
+
     Card(
-        modifier = modifier.height(95.dp),
-        shape = RoundedCornerShape(CornerRadius.lg),
+        modifier = modifier.height(96.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        ),
         onClick = { }
     ) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Spacing.sm),
+                .padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+
             Surface(
                 modifier = Modifier.size(38.dp),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
-                Box(contentAlignment = Alignment.Center) {
+
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
@@ -591,7 +587,9 @@ fun QuickActionButton(
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(
+                modifier = Modifier.height(7.dp)
+            )
 
             Text(
                 text = label,
@@ -604,75 +602,40 @@ fun QuickActionButton(
     }
 }
 
-// ═════════════════════════════════════════════════════
-// RECENT ACTIVITY CARD
-// ═════════════════════════════════════════════════════
+
+// ============================================================
+// DEVELOPMENT DATA NOTICE
+// ============================================================
 
 @Composable
-fun RecentActivityCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String
-) {
+private fun DevelopmentDataNotice() {
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(CornerRadius.lg),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            // Icon
-            Surface(
-                modifier = Modifier.size(42.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
 
-            // Text
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Text(
+                text = "Development Mode",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
 
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Spacer(
+                modifier = Modifier.height(4.dp)
+            )
 
-            // Arrow
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+            Text(
+                text = "The health data currently displayed is local development data. It will be replaced with your real backend data during integration.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

@@ -1,5 +1,6 @@
 package com.healthguardian.app.presentation.ui.onboarding
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -15,14 +16,19 @@ import androidx.compose.ui.unit.dp
 import com.healthguardian.app.core.ui.components.PrimaryButton
 import com.healthguardian.app.core.ui.theme.Spacing
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.background
+
+data class OnboardingPage(
+    val icon: String,
+    val title: String,
+    val description: String
+)
 
 @Composable
 fun OnboardingScreen(onComplete: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { 4 })
     val scope = rememberCoroutineScope()
 
-    val pages = listOf(
+    val pages = listOf<OnboardingPage>(
         OnboardingPage("👋", "Welcome", "Your personal AI-powered health intelligence companion"),
         OnboardingPage("📊", "Your Health Profile", "We learn what's normal for you personally"),
         OnboardingPage("🧠", "Understand", "Learn your personal health baseline"),
@@ -110,9 +116,3 @@ fun OnboardingPageContent(page: OnboardingPage) {
         )
     }
 }
-
-data class OnboardingPage(
-    val icon: String,
-    val title: String,
-    val description: String
-)

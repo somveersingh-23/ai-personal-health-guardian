@@ -4,15 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.healthguardian.app.presentation.ui.splash.SplashScreen
-import com.healthguardian.app.presentation.ui.onboarding.OnboardingScreen
-import com.healthguardian.app.presentation.ui.auth.LoginScreen
-import com.healthguardian.app.presentation.ui.auth.RegisterScreen
-import com.healthguardian.app.presentation.ui.dashboard.DashboardScreen
 import com.healthguardian.app.presentation.ui.ai.AIChatScreen
-import com.healthguardian.app.presentation.ui.records.HealthRecordsScreen
+import com.healthguardian.app.presentation.ui.dashboard.DashboardScreen
 import com.healthguardian.app.presentation.ui.insights.InsightsScreen
+import com.healthguardian.app.presentation.ui.onboarding.OnboardingScreen
+import com.healthguardian.app.presentation.ui.records.HealthRecordsScreen
 import com.healthguardian.app.presentation.ui.settings.SettingsScreen
+import com.healthguardian.app.presentation.ui.splash.SplashScreen
 
 @Composable
 fun HealthGuardianNavGraph(
@@ -23,79 +21,92 @@ fun HealthGuardianNavGraph(
         navController = navController,
         startDestination = startDestination
     ) {
+
+        // ---------------------------------------------------------
+        // Splash
+        // ---------------------------------------------------------
         composable(route = "splash") {
             SplashScreen(
                 onNavigateToOnboarding = {
                     navController.navigate("onboarding") {
-                        popUpTo("splash") { inclusive = true }
+                        popUpTo("splash") {
+                            inclusive = true
+                        }
                     }
                 },
                 onNavigateToDashboard = {
                     navController.navigate("main") {
-                        popUpTo("splash") { inclusive = true }
+                        popUpTo("splash") {
+                            inclusive = true
+                        }
                     }
                 }
             )
         }
 
+        // ---------------------------------------------------------
+        // Onboarding
+        // ---------------------------------------------------------
         composable(route = "onboarding") {
             OnboardingScreen(
                 onComplete = {
                     navController.navigate("main") {
-                        popUpTo("onboarding") { inclusive = true }
+                        popUpTo("onboarding") {
+                            inclusive = true
+                        }
                     }
                 }
             )
         }
 
-        composable(route = "login") {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate("main") {
-                        popUpTo("login") { inclusive = true }
-                    }
-                },
-                onNavigateToRegister = {
-                    navController.navigate("register")
-                }
-            )
-        }
-
-        composable(route = "register") {
-            RegisterScreen(
-                onRegisterSuccess = {
-                    navController.navigate("main") {
-                        popUpTo("register") { inclusive = true }
-                    }
-                },
-                onNavigateToLogin = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
+        // ---------------------------------------------------------
+        // Main Application
+        // ---------------------------------------------------------
         composable(route = "main") {
             MainAppScreen()
         }
 
+        // ---------------------------------------------------------
+        // Dashboard
+        // ---------------------------------------------------------
         composable(route = "dashboard") {
             DashboardScreen()
         }
 
+        // ---------------------------------------------------------
+        // AI Guardian
+        // ---------------------------------------------------------
         composable(route = "ai_chat") {
             AIChatScreen()
         }
 
+        // ---------------------------------------------------------
+        // Health Records
+        // ---------------------------------------------------------
         composable(route = "health_records") {
             HealthRecordsScreen()
         }
 
+        // ---------------------------------------------------------
+        // Insights
+        // ---------------------------------------------------------
         composable(route = "insights") {
             InsightsScreen()
         }
 
+        // ---------------------------------------------------------
+        // Settings
+        // ---------------------------------------------------------
         composable(route = "settings") {
-            SettingsScreen()
+            SettingsScreen(
+                onBackClick = {
+                    navController.navigate("dashboard") {
+                        popUpTo("settings") {
+                            inclusive = true
+                        }
+                    }
+                }
+            )
         }
     }
 }

@@ -17,7 +17,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.healthguardian.app.core.ui.theme.*
+import com.healthguardian.app.core.ui.theme.Spacing
+import com.healthguardian.app.core.ui.theme.CornerRadius
+import com.healthguardian.app.core.ui.theme.AppColors
+
+data class AIMessage(
+    val id: String,
+    val role: String,
+    val content: String,
+    val requiresUrgentAttention: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,7 +37,7 @@ fun AIChatScreen() {
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
 
     val messages = remember {
-        mutableStateListOf(
+        mutableStateListOf<AIMessage>(
             AIMessage(
                 id = "1",
                 role = "ASSISTANT",
@@ -88,7 +97,7 @@ fun AIChatScreen() {
                     modifier = Modifier
                         .size(42.dp)
                         .background(
-                            color = TealPrimary,
+                            color = AppColors.TealPrimary,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -143,9 +152,9 @@ fun AIChatScreen() {
             ) { message ->
 
                 if (message.role == "USER") {
-                    UserMessageBubble(message.content)
+                    UserMessageItem(message.content)
                 } else {
-                    AiMessageBubble(message)
+                    AiMessageItem(message)
                 }
             }
         }
@@ -183,7 +192,7 @@ fun AIChatScreen() {
 }
 
 @Composable
-fun UserMessageBubble(content: String) {
+fun UserMessageItem(content: String) {
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -198,12 +207,12 @@ fun UserMessageBubble(content: String) {
                 bottomStart = CornerRadius.lg,
                 bottomEnd = 6.dp
             ),
-            color = UserMessageBubble
+            color = AppColors.UserMessageBubble
         ) {
             Text(
                 text = content,
                 style = MaterialTheme.typography.bodyLarge,
-                color = UserMessageText,
+                color = AppColors.UserMessageText,
                 modifier = Modifier.padding(
                     horizontal = Spacing.md,
                     vertical = Spacing.sm
@@ -214,7 +223,7 @@ fun UserMessageBubble(content: String) {
 }
 
 @Composable
-fun AiMessageBubble(message: AIMessage) {
+fun AiMessageItem(message: AIMessage) {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -227,7 +236,7 @@ fun AiMessageBubble(message: AIMessage) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(CornerRadius.md),
                 colors = CardDefaults.cardColors(
-                    containerColor = CriticalHealthWarning.copy(alpha = 0.10f)
+                    containerColor = AppColors.CriticalHealthWarning.copy(alpha = 0.10f)
                 )
             ) {
                 Row(
@@ -241,13 +250,13 @@ fun AiMessageBubble(message: AIMessage) {
                     Icon(
                         imageVector = Icons.Default.Warning,
                         contentDescription = "Warning",
-                        tint = CriticalHealthWarning
+                        tint = AppColors.CriticalHealthWarning
                     )
 
                     Text(
                         text = "Consider contacting a healthcare professional.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = CriticalHealthWarning,
+                        color = AppColors.CriticalHealthWarning,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -265,7 +274,7 @@ fun AiMessageBubble(message: AIMessage) {
                 modifier = Modifier
                     .size(38.dp)
                     .background(
-                        color = TealPrimary,
+                        color = AppColors.TealPrimary,
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -379,10 +388,3 @@ fun MessageComposer(
         }
     }
 }
-
-data class AIMessage(
-    val id: String,
-    val role: String,
-    val content: String,
-    val requiresUrgentAttention: Boolean
-)

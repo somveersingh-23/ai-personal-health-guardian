@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.healthguardian.app.core.ui.theme.PrimaryBlue
+import com.healthguardian.app.core.ui.theme.AppColors
 import com.healthguardian.app.core.ui.theme.Spacing
 import androidx.compose.ui.draw.alpha
 
@@ -39,7 +39,7 @@ fun SplashScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        PrimaryBlue.copy(alpha = 0.1f),
+                        AppColors.PrimaryBlue.copy(alpha = 0.1f),
                         MaterialTheme.colorScheme.background
                     )
                 )

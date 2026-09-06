@@ -11,34 +11,34 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryBlue,
+    primary = AppColors.PrimaryBlue,
     onPrimary = Color.White,
-    secondary = TealPrimary,
-    tertiary = SecondaryGreen,
-    background = BackgroundLight,
-    onBackground = TextPrimaryLight,
-    surface = SurfaceLight,
-    onSurface = TextPrimaryLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = TextSecondaryLight,
-    outline = DividerLight,
-    error = ErrorColor,
+    secondary = AppColors.TealPrimary,
+    tertiary = AppColors.SecondaryGreen,
+    background = AppColors.BackgroundLight,
+    onBackground = AppColors.TextPrimaryLight,
+    surface = AppColors.SurfaceLight,
+    onSurface = AppColors.TextPrimaryLight,
+    surfaceVariant = AppColors.SurfaceVariantLight,
+    onSurfaceVariant = AppColors.TextSecondaryLight,
+    outline = AppColors.DividerLight,
+    error = AppColors.ErrorColor,
     onError = Color.White
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryBlueLight,
-    onPrimary = PrimaryBlue,
-    secondary = TealPrimary,
-    tertiary = SecondaryGreen,
-    background = BackgroundDark,
-    onBackground = TextPrimaryDark,
-    surface = SurfaceDark,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = TextSecondaryDark,
-    outline = DividerDark,
-    error = ErrorColor,
+    primary = AppColors.PrimaryBlueLight,
+    onPrimary = AppColors.PrimaryBlue,
+    secondary = AppColors.TealPrimary,
+    tertiary = AppColors.SecondaryGreen,
+    background = AppColors.BackgroundDark,
+    onBackground = AppColors.TextPrimaryDark,
+    surface = AppColors.SurfaceDark,
+    onSurface = AppColors.TextPrimaryDark,
+    surfaceVariant = AppColors.SurfaceVariantDark,
+    onSurfaceVariant = AppColors.TextSecondaryDark,
+    outline = AppColors.DividerDark,
+    error = AppColors.ErrorColor,
     onError = Color.White
 )
 

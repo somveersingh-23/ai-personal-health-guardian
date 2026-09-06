@@ -1,5 +1,6 @@
 package com.healthguardian.app.presentation.navigation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.sp
@@ -43,9 +44,11 @@ fun MainAppScreen() {
             }
         }
     ) { innerPadding ->
-        HealthGuardianNavGraph(
-            navController = navController,
-            startDestination = "dashboard"
-        )
+        Box(modifier = Modifier.padding(innerPadding)) {
+            HealthGuardianNavGraph(
+                navController = navController,
+                startDestination = "dashboard"
+            )
+        }
     }
 }

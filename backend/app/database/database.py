@@ -17,10 +17,12 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+
 engine = create_async_engine(
     settings.database_url,
     echo=True,
 )
+
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

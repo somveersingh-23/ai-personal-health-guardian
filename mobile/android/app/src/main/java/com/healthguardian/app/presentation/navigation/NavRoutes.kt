@@ -1,17 +1,17 @@
 package com.healthguardian.app.presentation.navigation
 
 sealed class NavRoute(val route: String) {
-    object Splash : NavRoute("splash")
-    object Onboarding : NavRoute("onboarding")
-    object Login : NavRoute("login")
-    object Register : NavRoute("register")
-    object Main : NavRoute("main")
-    object Dashboard : NavRoute("dashboard")
-    object HealthProfile : NavRoute("profile")
-    object HealthRecords : NavRoute("health_records")
-    object AIChat : NavRoute("ai_chat")
-    object Insights : NavRoute("insights")
-    object Settings : NavRoute("settings")
+    data object Splash : NavRoute("splash")
+    data object Onboarding : NavRoute("onboarding")
+    data object Login : NavRoute("login")
+    data object Register : NavRoute("register")
+    data object Main : NavRoute("main")
+    data object Dashboard : NavRoute("dashboard")
+    data object HealthProfile : NavRoute("profile")
+    data object HealthRecords : NavRoute("health_records")
+    data object AIChat : NavRoute("ai_chat")
+    data object Insights : NavRoute("insights")
+    data object Settings : NavRoute("settings")
 
     companion object {
         val bottomNavRoutes = listOf(
@@ -25,11 +25,11 @@ sealed class BottomNavItem(
     val icon: String,
     val label: String
 ) {
-    object Dashboard : BottomNavItem(NavRoute.Dashboard, "🏠", "Home")
-    object AIChat : BottomNavItem(NavRoute.AIChat, "🤖", "AI")
-    object HealthRecords : BottomNavItem(NavRoute.HealthRecords, "📋", "Health")
-    object Insights : BottomNavItem(NavRoute.Insights, "📊", "Insights")
-    object Settings : BottomNavItem(NavRoute.Settings, "⚙️", "Profile")
+    data object Dashboard : BottomNavItem(NavRoute.Dashboard, "🏠", "Home")
+    data object AIChat : BottomNavItem(NavRoute.AIChat, "🤖", "AI")
+    data object HealthRecords : BottomNavItem(NavRoute.HealthRecords, "📋", "Health")
+    data object Insights : BottomNavItem(NavRoute.Insights, "📊", "Insights")
+    data object Settings : BottomNavItem(NavRoute.Settings, "⚙️", "Profile")
 
     companion object {
         val items = listOf(Dashboard, AIChat, HealthRecords, Insights, Settings)
