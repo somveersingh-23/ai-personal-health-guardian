@@ -1,36 +1,39 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
+import os
+
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+load_dotenv()
+
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
 )
 
-
-class Settings(BaseSettings):
-    database_url: str
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=False,
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not configured."
     )
 
 
-settings = Settings()
-
-
-engine = create_async_engine(
-    settings.database_url,
-    echo=True,
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
 )
 
 
-AsyncSessionLocal = async_sessionmaker(
+SessionLocal = sessionmaker(
     bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False,
 )
 
 
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+def get_db():
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
