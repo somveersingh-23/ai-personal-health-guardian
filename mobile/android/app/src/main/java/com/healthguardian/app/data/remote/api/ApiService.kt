@@ -10,12 +10,15 @@ import com.healthguardian.app.data.remote.dto.HealthRecordRequest
 import com.healthguardian.app.data.remote.dto.HealthRecordResponse
 import com.healthguardian.app.data.remote.dto.InsightResponse
 import com.healthguardian.app.data.remote.dto.LoginRequest
+import com.healthguardian.app.data.remote.dto.Member1DigitalTwinResponse
+import com.healthguardian.app.data.remote.dto.Member1HealthIntelligenceResponse
 import com.healthguardian.app.data.remote.dto.RegisterRequest
 import com.healthguardian.app.data.remote.dto.UserResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.PUT
 import retrofit2.http.Query
 
@@ -64,4 +67,16 @@ interface ApiService {
 
     @GET("api/v1/dashboard")
     suspend fun getDashboard(): Response<DashboardResponse>
+
+    // Member 1 - Personal Health Digital Twin APIs.
+    // userId is a development identifier until authentication/ownership is wired.
+    @GET("api/member1/health-intelligence/{userId}/digital-twin")
+    suspend fun getMember1DigitalTwin(
+        @Path("userId") userId: Int
+    ): Response<Member1DigitalTwinResponse>
+
+    @GET("api/member1/health-intelligence/{userId}/insights")
+    suspend fun getMember1HealthInsights(
+        @Path("userId") userId: Int
+    ): Response<Member1HealthIntelligenceResponse>
 }

@@ -25,12 +25,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.healthguardian.app.domain.model.HealthMetric
 import com.healthguardian.app.presentation.viewmodel.DigitalTwinUiState
 import com.healthguardian.app.presentation.viewmodel.DigitalTwinViewModel
@@ -38,10 +39,15 @@ import com.healthguardian.app.presentation.viewmodel.DigitalTwinViewModel
 @Composable
 fun DigitalTwinSection(
     modifier: Modifier = Modifier,
-    viewModel: DigitalTwinViewModel = viewModel()
+    userId: Int = 1,
+    viewModel: DigitalTwinViewModel = hiltViewModel()
 ) {
 
     val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(userId) {
+        viewModel.loadDigitalTwin(userId)
+    }
 
     Column(
         modifier = modifier.fillMaxWidth()
@@ -166,7 +172,7 @@ private fun DigitalTwinContent(
     )
 
     Text(
-        text = "Development data • Replace with backend data during integration.",
+        text = "Generated from recorded health events and the personal baseline pipeline.",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 4.dp)

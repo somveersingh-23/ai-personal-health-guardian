@@ -524,6 +524,7 @@ class PersonalizedInsightEngine:
                             ],
                         }
                     )
+                )
 
                 insight[
                     "supporting_data"

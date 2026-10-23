@@ -51,3 +51,12 @@ Thumbs.db
 
 # Node
 node_modules/.kotlin/
+
+
+# Member 1 generated ML artifacts (regenerate with scripts/run_member1_ml_pipeline.py)
+ml/member1/data/raw/*.csv
+ml/member1/data/processed/
+
+# Test/runtime artifacts
+.pytest_cache/
+.coverage

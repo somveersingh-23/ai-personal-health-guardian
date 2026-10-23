@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class HealthProfileCreate(BaseModel):
-    user_id: int
+    user_id: int = Field(gt=0)
 
     age: int | None = Field(
         default=None,

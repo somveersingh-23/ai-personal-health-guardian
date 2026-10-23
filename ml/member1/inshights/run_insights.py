@@ -11,7 +11,7 @@ from .config import (
     INSIGHT_OUTPUT_DIR,
 )
 
-from .insight_engine import (
+from .inshights_engine import (
     PersonalizedInsightEngine,
 )
 

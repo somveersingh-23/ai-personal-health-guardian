@@ -33,7 +33,12 @@ object NetworkModule {
         return HttpLoggingInterceptor { message ->
             android.util.Log.d("HTTP", message)
         }.apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Do not log health payload bodies; they can contain sensitive data.
+            level = if (com.healthguardian.app.BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BASIC
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
     }
 

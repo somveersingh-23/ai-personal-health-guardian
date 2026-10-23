@@ -1,0 +1,14 @@
+.git/
+**/.git/
+.env
+**/.env
+**/local.properties
+**/.gradle/
+**/build/
+**/__pycache__/
+**/*.py[cod]
+.venv/
+venv/
+node_modules/
+mobile/
+*.log

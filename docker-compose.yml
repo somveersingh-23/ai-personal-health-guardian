@@ -1,25 +1,34 @@
 services:
-
   postgres:
     image: postgres:16
     container_name: health_guardian_postgres
-
     environment:
-      POSTGRES_DB: health_guardian
-      POSTGRES_USER: health_user
-      POSTGRES_PASSWORD: health_password
-
+      POSTGRES_DB: ${POSTGRES_DB:-health_guardian}
+      POSTGRES_USER: ${POSTGRES_USER:-health_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-health_password}
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U health_user -d health_guardian"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-health_user} -d ${POSTGRES_DB:-health_guardian}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: health_guardian_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-health_user}:${POSTGRES_PASSWORD:-health_password}@postgres:5432/${POSTGRES_DB:-health_guardian}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

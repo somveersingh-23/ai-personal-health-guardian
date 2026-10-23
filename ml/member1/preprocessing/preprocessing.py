@@ -62,16 +62,11 @@ def clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
     Clean and standardize raw health-event data.
     """
 
-    validate_columns(df)
-
     cleaned = df.copy()
 
-    # Normalize column names.
-    cleaned.columns = (
-        cleaned.columns
-        .str.strip()
-        .str.lower()
-    )
+    # Normalize column names before validating/using them.
+    cleaned.columns = cleaned.columns.str.strip().str.lower()
+    validate_columns(cleaned)
 
     # Convert event ID and user ID.
     cleaned["event_id"] = pd.to_numeric(
@@ -416,7 +411,7 @@ def preprocess_file(
         cleaned
     )
 
-    PROCESSED_DATA_DIR.mkdir(
+    output_file.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
