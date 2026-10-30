@@ -239,10 +239,16 @@ def test_shared_main_app_lifespan_creates_tables_and_persists(monkeypatch, tmp_p
     monkeypatch.setenv("DATABASE_URL", db_url)
 
     from app.database import database as db_mod
-    db_mod.configure_database(db_url)
+    if hasattr(db_mod, 'configure_database'):
+        db_mod.configure_database(db_url)
+    else:
+        from sqlalchemy.ext.asyncio import create_async_engine
+        test_engine = create_async_engine(db_url)
+        monkeypatch.setattr(db_mod, 'engine', test_engine)
 
     from app.main import app
-    app.state.member3_services = build_persistent_container(db_mod.engine)
+    target_engine = getattr(db_mod, 'engine', None)
+    app.state.member3_services = build_persistent_container(target_engine)
 
     token = _token("shared-user")
     headers = {"Authorization": f"Bearer {token}"}

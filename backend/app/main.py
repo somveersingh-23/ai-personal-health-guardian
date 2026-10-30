@@ -67,7 +67,6 @@ configure_member3_services(app, member3_services)
 
 @app.get("/")
 async def root():
-
     return {
         "project": "AI Personal Health Guardian",
         "module": "Member 1 - Personal Health Digital Twin",

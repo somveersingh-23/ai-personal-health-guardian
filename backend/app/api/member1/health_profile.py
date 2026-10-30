@@ -24,7 +24,6 @@ async def create_health_profile(
     profile_data: HealthProfileCreate,
     db: AsyncSession = Depends(get_db),
 ):
-
     profile = HealthProfile(
         user_id=profile_data.user_id,
         age=profile_data.age,
@@ -51,10 +50,10 @@ async def get_health_profile(
     user_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-
     result = await db.execute(
-        select(HealthProfile)
-        .where(HealthProfile.user_id == user_id)
+        select(HealthProfile).where(
+            HealthProfile.user_id == user_id
+        )
     )
 
     profile = result.scalar_one_or_none()

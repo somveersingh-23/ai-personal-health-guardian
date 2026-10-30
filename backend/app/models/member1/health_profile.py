@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, JSON, ForeignKey
+from sqlalchemy import DateTime, Float, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -18,6 +18,7 @@ class HealthProfile(Base):
     user_id: Mapped[int] = mapped_column(
         Integer,
         index=True,
+        nullable=False,
     )
 
     age: Mapped[int | None] = mapped_column(
@@ -35,28 +36,33 @@ class HealthProfile(Base):
         nullable=True,
     )
 
-    known_conditions: Mapped[list] = mapped_column(
+    known_conditions: Mapped[list[str]] = mapped_column(
         JSON,
         default=list,
+        nullable=False,
     )
 
-    medications: Mapped[list] = mapped_column(
+    medications: Mapped[list[str]] = mapped_column(
         JSON,
         default=list,
+        nullable=False,
     )
 
-    allergies: Mapped[list] = mapped_column(
+    allergies: Mapped[list[str]] = mapped_column(
         JSON,
         default=list,
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
+        nullable=False,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
+        nullable=False,
     )
