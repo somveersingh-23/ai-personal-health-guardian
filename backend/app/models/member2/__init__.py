@@ -9,7 +9,7 @@ from app.models.member2.device_sync import (
     SensorIngestionAudit,
 )
 from app.models.member2.governance import ConsentReceipt
-from app.models.member2.health_event import HealthEvent
+from app.models.member2.health_event import HealthEvent, Member2SensorEvent
 from app.models.member2.lifecycle import SourceTombstone
 from app.models.member2.reconciliation import ReconciliationRecord, ReconciliationSession
 
@@ -20,6 +20,7 @@ __all__ = [
     "ConsentReceipt",
     "HealthConnectSyncState",
     "HealthEvent",
+    "Member2SensorEvent",
     "RawSensorAudit",
     "SensorIngestionAudit",
     "SourceTombstone",

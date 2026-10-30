@@ -17,7 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.create_table(
-        "health_events",
+        "member2_sensor_events",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("event_id", sa.String(length=36), nullable=False),
         sa.Column("schema_version", sa.String(length=16), nullable=False),
@@ -79,19 +79,19 @@ def upgrade() -> None:
             name="ck_event_interval_order",
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("event_id", name="uq_health_events_event_id"),
+        sa.UniqueConstraint("event_id", name="uq_member2_sensor_events_event_id"),
     )
-    op.create_index("ix_health_events_metric", "health_events", ["metric"])
-    op.create_index("ix_health_events_source", "health_events", ["source"])
-    op.create_index("ix_health_events_user_id", "health_events", ["user_id"])
+    op.create_index("ix_member2_sensor_events_metric", "member2_sensor_events", ["metric"])
+    op.create_index("ix_member2_sensor_events_source", "member2_sensor_events", ["source"])
+    op.create_index("ix_member2_sensor_events_user_id", "member2_sensor_events", ["user_id"])
     op.create_index(
-        "ix_health_events_user_metric_time",
-        "health_events",
+        "ix_member2_sensor_events_user_metric_time",
+        "member2_sensor_events",
         ["user_id", "metric", "observed_at", "start_at", "end_at"],
     )
     op.create_index(
-        "uq_health_events_source_identity",
-        "health_events",
+        "uq_member2_sensor_events_source_identity",
+        "member2_sensor_events",
         ["user_id", "data_origin_package", "source_record_type", "source_record_id"],
         unique=True,
         postgresql_where=sa.text("source_record_id IS NOT NULL"),
@@ -173,9 +173,9 @@ def downgrade() -> None:
     op.drop_index("ix_sensor_ingestion_audits_user_id", table_name="sensor_ingestion_audits")
     op.drop_index("ix_sensor_ingestion_audits_payload_sha256", table_name="sensor_ingestion_audits")
     op.drop_table("sensor_ingestion_audits")
-    op.drop_index("uq_health_events_source_identity", table_name="health_events")
-    op.drop_index("ix_health_events_user_metric_time", table_name="health_events")
-    op.drop_index("ix_health_events_user_id", table_name="health_events")
-    op.drop_index("ix_health_events_source", table_name="health_events")
-    op.drop_index("ix_health_events_metric", table_name="health_events")
-    op.drop_table("health_events")
+    op.drop_index("uq_member2_sensor_events_source_identity", table_name="member2_sensor_events")
+    op.drop_index("ix_member2_sensor_events_user_metric_time", table_name="member2_sensor_events")
+    op.drop_index("ix_member2_sensor_events_user_id", table_name="member2_sensor_events")
+    op.drop_index("ix_member2_sensor_events_source", table_name="member2_sensor_events")
+    op.drop_index("ix_member2_sensor_events_metric", table_name="member2_sensor_events")
+    op.drop_table("member2_sensor_events")

@@ -17,6 +17,8 @@ from app.database.database import get_db
 from app.models.member1.health_profile import HealthProfile
 from app.schemas.member2 import (
     CLAIM_REGISTRY,
+    CameraFrameQualityRequest,
+    CameraFrameQualityResponse,
     ConsentReceiptCreate,
     ConsentReceiptResponse,
     ConsentWithdrawalRequest,
@@ -35,6 +37,8 @@ from app.schemas.member2 import (
     Member2DataExportPage,
     Member2DataPurgeRequest,
     Member2DataPurgeResponse,
+    MultimodalEvidenceRequest,
+    MultimodalEvidenceVector,
     MultimodalFusionRequest,
     MultimodalFusionResponse,
     ReconciliationChunkResponse,
@@ -47,15 +51,20 @@ from app.schemas.member2 import (
     SourceDeletionResponse,
     SourceReconciliationRequest,
     SourceReconciliationResponse,
+    WaveformQualityAssessmentRequest,
+    WaveformQualityResponse,
 )
 from app.services.sensors import (
     add_reconciliation_records,
+    assess_camera_frame_quality,
+    assess_waveform_quality,
     begin_reconciliation,
     complete_reconciliation,
     create_consent_receipt,
     delete_source_records,
     fetch_events_for_window,
     export_active_events_page,
+    fuse_baseline_evidence,
     fuse_events,
     list_active_events,
     persist_batch,
@@ -236,6 +245,43 @@ async def align_features(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
         ) from exc
     return MultimodalFusionResponse(vector=vector)
+
+
+@router.post("/evidence/fuse", response_model=MultimodalEvidenceVector)
+async def fuse_evidence(
+    request: MultimodalEvidenceRequest,
+    user_id: int = Depends(require_local_profile),
+) -> MultimodalEvidenceVector:
+    """Fuse aligned multimodal features and personal baseline deviations into non-diagnostic evidence."""
+    if request.vector.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="vector user_id must match the authenticated profile user_id",
+        )
+    try:
+        return fuse_baseline_evidence(request)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+
+@router.post("/quality/camera", response_model=CameraFrameQualityResponse)
+async def assess_camera_quality(
+    request: CameraFrameQualityRequest,
+    user_id: int = Depends(require_local_profile),
+) -> CameraFrameQualityResponse:
+    """Assess camera frame capture conditions; non-diagnostic."""
+    return assess_camera_frame_quality(request)
+
+
+@router.post("/quality/waveform", response_model=WaveformQualityResponse)
+async def assess_waveform_signal_quality(
+    request: WaveformQualityAssessmentRequest,
+    user_id: int = Depends(require_local_profile),
+) -> WaveformQualityResponse:
+    """Assess raw sensor waveform SQI for clipping, flatline, and motion; non-diagnostic."""
+    return assess_waveform_quality(request)
 
 
 @router.put("/devices", response_model=DeviceRegistrationResponse)

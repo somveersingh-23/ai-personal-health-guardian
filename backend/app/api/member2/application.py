@@ -1,13 +1,31 @@
 """M2-only PostgreSQL runtime with migrations managed outside application startup."""
 
 from contextlib import asynccontextmanager
+import logging
+import os
+
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from app.database.database import get_db, settings
+
 from app.api.member2.local import router
+from app.database.database import get_db
 
 MIGRATION_HEAD = "0003_member2"
+logger = logging.getLogger("member2.application")
+
+
+class _Settings:
+    @property
+    def database_url(self) -> str:
+        return os.getenv("DATABASE_URL", "")
+
+    @database_url.setter
+    def database_url(self, value: str) -> None:
+        os.environ["DATABASE_URL"] = value
+
+
+settings = _Settings()
 
 
 def create_app() -> FastAPI:
@@ -58,7 +76,8 @@ def create_app() -> FastAPI:
         try:
             await verify_schema()
         except Exception as exc:
-            raise HTTPException(503, "database not ready") from exc
+            logger.error("Database readiness check failed: %s", exc, exc_info=exc)
+            raise HTTPException(status_code=503, detail="database not ready") from exc
         return {"status": "ready"}
 
     return app

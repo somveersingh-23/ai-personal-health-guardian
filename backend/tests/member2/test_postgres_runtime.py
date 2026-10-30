@@ -77,6 +77,6 @@ def test_postgres_profile_ingestion_and_read_contract(app_factory) -> None:
             json={"confirmation": "DELETE_MEMBER2_DATA"},
         )
         assert purge.status_code == 200, purge.text
-        assert purge.json()["deleted_counts"]["health_events"] == 1
+        assert purge.json()["deleted_counts"]["member2_sensor_events"] == 1
         assert client.get("/api/v1/member2/events?user_id=920002").json() == []
         assert client.get("/api/v1/member1/health-profile/920002").status_code == 200

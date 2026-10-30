@@ -16,7 +16,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def _upgrade_health_events() -> None:
-    with op.batch_alter_table("health_events") as batch:
+    with op.batch_alter_table("member2_sensor_events") as batch:
         batch.add_column(sa.Column("source_unit", sa.String(length=32), nullable=True))
         batch.add_column(sa.Column("canonical_unit_ucum", sa.String(length=32), nullable=True))
         batch.add_column(sa.Column("standard_code_system", sa.String(length=128), nullable=True))
@@ -65,10 +65,10 @@ def _upgrade_health_events() -> None:
         batch.add_column(sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True))
         batch.add_column(sa.Column("deletion_reason", sa.String(length=128), nullable=True))
 
-    op.execute("UPDATE health_events SET source_unit = unit")
+    op.execute("UPDATE member2_sensor_events SET source_unit = unit")
     op.execute(
         """
-        UPDATE health_events SET canonical_unit_ucum = CASE metric
+        UPDATE member2_sensor_events SET canonical_unit_ucum = CASE metric
           WHEN 'heart_rate' THEN '{beats}/min'
           WHEN 'resting_heart_rate' THEN '{beats}/min'
           WHEN 'hrv_rmssd' THEN 'ms'
@@ -83,7 +83,7 @@ def _upgrade_health_events() -> None:
     )
     op.execute(
         """
-        UPDATE health_events SET standard_code_system = 'http://loinc.org', standard_code =
+        UPDATE member2_sensor_events SET standard_code_system = 'http://loinc.org', standard_code =
           CASE metric
             WHEN 'heart_rate' THEN '8867-4'
             WHEN 'spo2' THEN '59408-5'
@@ -105,18 +105,18 @@ def _upgrade_health_events() -> None:
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
         statement = sa.text(
-            "UPDATE health_events SET quality_vector_json = CAST(:value AS JSON)"
+            "UPDATE member2_sensor_events SET quality_vector_json = CAST(:value AS JSON)"
         ).bindparams(value=vector)
         op.execute(statement)
     else:
-        op.execute(sa.text("UPDATE health_events SET quality_vector_json = :value").bindparams(value=vector))
+        op.execute(sa.text("UPDATE member2_sensor_events SET quality_vector_json = :value").bindparams(value=vector))
 
-    with op.batch_alter_table("health_events") as batch:
+    with op.batch_alter_table("member2_sensor_events") as batch:
         batch.alter_column("source_unit", existing_type=sa.String(length=32), nullable=False)
         batch.alter_column("canonical_unit_ucum", existing_type=sa.String(length=32), nullable=False)
         batch.alter_column("quality_vector_json", existing_type=sa.JSON(), nullable=False)
-        batch.create_index("ix_health_events_consent_receipt_id", ["consent_receipt_id"])
-        batch.create_index("ix_health_events_lifecycle_status", ["lifecycle_status"])
+        batch.create_index("ix_member2_sensor_events_consent_receipt_id", ["consent_receipt_id"])
+        batch.create_index("ix_member2_sensor_events_lifecycle_status", ["lifecycle_status"])
         batch.create_check_constraint(
             "ck_event_motion_artifact_score",
             "motion_artifact_score IS NULL OR "
@@ -281,11 +281,11 @@ def downgrade() -> None:
     with op.batch_alter_table("health_connect_sync_states") as batch:
         batch.drop_column("token_fingerprint")
 
-    with op.batch_alter_table("health_events") as batch:
+    with op.batch_alter_table("member2_sensor_events") as batch:
         batch.drop_constraint("ck_event_lifecycle_state", type_="check")
         batch.drop_constraint("ck_event_motion_artifact_score", type_="check")
-        batch.drop_index("ix_health_events_lifecycle_status")
-        batch.drop_index("ix_health_events_consent_receipt_id")
+        batch.drop_index("ix_member2_sensor_events_lifecycle_status")
+        batch.drop_index("ix_member2_sensor_events_consent_receipt_id")
         for column in (
             "deletion_reason",
             "deleted_at",

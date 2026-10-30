@@ -253,7 +253,7 @@ def test_persistence_revision_privacy_and_reconciliation(tmp_path):
             await persist_batch(
                 session, batch(reading(source_record_id="user8")), 8, NOW
             )
-            assert (await purge_member2_data(session, 7))["health_events"] == 1
+            assert (await purge_member2_data(session, 7))["member2_sensor_events"] == 1
             assert (await session.get(SensorCollectionState, 7)).paused
             with pytest.raises(CollectionPausedError):
                 await persist_batch(session, batch(reading()), 7, NOW)

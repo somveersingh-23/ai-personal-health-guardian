@@ -441,6 +441,10 @@ def fuse_baseline_evidence(
     """Combine Member 1 standardized deviations into evidence strength, not medical risk."""
 
     if request.vector.abstained:
+        reasons = ["input_feature_vector_abstained"]
+        for reason in request.vector.abstention_reasons:
+            if reason not in reasons:
+                reasons.append(reason)
         return MultimodalEvidenceVector(
             user_id=request.vector.user_id,
             window_start=request.vector.window_start,
@@ -449,7 +453,7 @@ def fuse_baseline_evidence(
             combined_evidence_strength=0.0,
             missing_baselines=[item.metric for item in request.vector.features],
             abstained=True,
-            abstention_reasons=["input_feature_vector_abstained"],
+            abstention_reasons=reasons[:32],
         )
     features = {item.metric: item for item in request.vector.features}
     deviations = {item.metric: item for item in request.baseline_deviations}

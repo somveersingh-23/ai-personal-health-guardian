@@ -130,7 +130,7 @@ def test_local_read_contract_is_bound_to_an_existing_m1_profile(
             json={"confirmation": "DELETE_MEMBER2_DATA"},
         )
         assert purge.status_code == 200, purge.text
-        assert purge.json()["deleted_counts"]["health_events"] == 1
+        assert purge.json()["deleted_counts"]["member2_sensor_events"] == 1
         assert client.get("/api/v1/member2/events?user_id=7").json() == []
         assert client.get("/api/v1/member1/health-profile/7").status_code == 200
         blocked = client.post(

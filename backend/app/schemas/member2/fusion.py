@@ -105,6 +105,14 @@ class BaselineDeviation(BaseModel):
             raise ValueError("deviation_score must be finite")
         return value
 
+    @model_validator(mode="after")
+    def validate_consistency(self) -> "BaselineDeviation":
+        if self.status == "above_normal" and self.deviation_score < 0:
+            raise ValueError("above_normal deviation_score cannot be negative")
+        if self.status == "below_normal" and self.deviation_score > 0:
+            raise ValueError("below_normal deviation_score cannot be positive")
+        return self
+
 
 class EvidenceItem(BaseModel):
     metric: MetricType

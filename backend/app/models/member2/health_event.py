@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database.base import Base
 
 
-class HealthEvent(Base):
-    __tablename__ = "health_events"
+class Member2SensorEvent(Base):
+    __tablename__ = "member2_sensor_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
@@ -118,9 +118,9 @@ class HealthEvent(Base):
             "end_at IS NULL OR start_at IS NULL OR end_at > start_at",
             name="ck_event_interval_order",
         ),
-        Index("ix_health_events_user_metric_time", "user_id", "metric", "observed_at", "start_at", "end_at"),
+        Index("ix_member2_sensor_events_user_metric_time", "user_id", "metric", "observed_at", "start_at", "end_at"),
         Index(
-            "uq_health_events_source_identity",
+            "uq_member2_sensor_events_source_identity",
             "user_id",
             "data_origin_package",
             "source_record_type",
@@ -130,3 +130,7 @@ class HealthEvent(Base):
             sqlite_where=text("source_record_id IS NOT NULL"),
         ),
     )
+
+
+# Backward-compatible alias for existing Member 2 internal references
+HealthEvent = Member2SensorEvent

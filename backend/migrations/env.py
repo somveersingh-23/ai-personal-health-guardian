@@ -7,18 +7,26 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.database.base import Base
-from app.database.database import settings
+import os
+try:
+    from app.database.database import settings
+    _db_url = getattr(settings, "database_url", None)
+except Exception:
+    _db_url = None
+
+if not _db_url:
+    _db_url = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./health_guardian.db")
 import app.models.member2  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", _db_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 MEMBER2_TABLES = {
-    "health_events",
+    "member2_sensor_events",
     "device_registries",
     "health_connect_sync_states",
     "sensor_ingestion_audits",

@@ -653,7 +653,7 @@ async def purge_member2_data(session: AsyncSession, user_id: int) -> dict[str, i
                 ReconciliationSession.user_id == user_id
             ),
         ),
-        ("health_events", delete(HealthEvent).where(HealthEvent.user_id == user_id)),
+        ("member2_sensor_events", delete(HealthEvent).where(HealthEvent.user_id == user_id)),
         (
             "source_tombstones",
             delete(SourceTombstone).where(SourceTombstone.user_id == user_id),
