@@ -17,9 +17,9 @@ class Member3Repository(
     } catch (error: IOException) {
         val cached = cache.getInsights(userId)
         if (cached.isNotEmpty()) {
-            LoadState.Offline(true, "Showing saved insights while offline")
+            LoadState.Offline(cached, "Showing saved insights while offline")
         } else {
-            LoadState.Offline(false, error.message ?: "You appear to be offline")
+            LoadState.Offline(null, error.message ?: "You appear to be offline")
         }
     } catch (error: Exception) {
         LoadState.Error(error.message ?: "Unexpected error")
@@ -32,9 +32,9 @@ class Member3Repository(
     } catch (error: IOException) {
         val cached = cache.getAlerts(userId)
         if (cached.isNotEmpty()) {
-            LoadState.Offline(true, "Showing saved alerts while offline")
+            LoadState.Offline(cached, "Showing saved alerts while offline")
         } else {
-            LoadState.Offline(false, error.message ?: "You appear to be offline")
+            LoadState.Offline(null, error.message ?: "You appear to be offline")
         }
     } catch (error: Exception) {
         LoadState.Error(error.message ?: "Unexpected error")
@@ -44,7 +44,7 @@ class Member3Repository(
         val latest = api.listCaregivers(userId)
         LoadState.Ready(latest)
     } catch (error: IOException) {
-        LoadState.Offline(false, error.message ?: "Caregivers unavailable while offline")
+        LoadState.Offline(null, error.message ?: "Caregivers unavailable while offline")
     } catch (error: Exception) {
         LoadState.Error(error.message ?: "Unable to load caregivers")
     }

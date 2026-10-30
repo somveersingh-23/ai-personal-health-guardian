@@ -105,11 +105,17 @@ class TemplateProvider:
         if context.evidence:
             parts.append("Here is what your data shows:")
             for item in context.evidence:
-                direction_note = (
-                    f"your {item.metric} is {item.direction} "
-                    f"(current: {item.current_value} {item.unit}, "
-                    f"baseline: {item.baseline_value} {item.unit})"
-                )
+                if item.current_value is not None:
+                    direction_note = (
+                        f"your {item.metric} is {item.direction} "
+                        f"(current: {item.current_value} {item.unit}, "
+                        f"baseline: {item.baseline_value} {item.unit})"
+                    )
+                else:
+                    direction_note = (
+                        f"your {item.metric} is {item.direction} "
+                        f"(standardized deviation: {item.standardized_deviation:+g})"
+                    )
                 parts.append(f"  • {direction_note}.")
 
         # Mention uncertainty when confidence or quality is limited.
@@ -120,6 +126,12 @@ class TemplateProvider:
         if context.limitations:
             limitation_text = "; ".join(context.limitations)
             parts.append(f"{_LIMITATION_INTRO}{limitation_text}.")
+
+        if context.reference_passages:
+            references = "; ".join(context.citations)
+            parts.append(
+                "Educational references used for context: " + references + "."
+            )
 
         # Add an action-appropriate next step.
         closing = _CLOSING.get(action, "Please consult your healthcare provider.")

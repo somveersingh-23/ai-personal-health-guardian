@@ -33,12 +33,11 @@ import unittest
 import uuid
 from unittest.mock import MagicMock
 
-from ai.assistant.provider import AssistantProvider, StructuredPromptContext
+from ai.assistant.provider import AssistantProvider
 from ai.assistant.template_provider import TemplateProvider
 from app.schemas.member3.assistant import EvidenceItem, ExplainRequest, ExplainResponse
 from app.services.member3.guardian.explanation_service import (
     ExplanationService,
-    InsufficientEvidenceError,
     ProviderError,
     UnsupportedActionError,
 )

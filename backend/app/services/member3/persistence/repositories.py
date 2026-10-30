@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import TypeVar
+from typing import Any, Generator, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import Engine, create_engine, delete, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.models.member3.guardian_record import Member3GuardianRecord
 from app.schemas.member3.alerts import AlertRecord
@@ -22,14 +25,90 @@ from app.services.member3.guardian.alert_service import _StoredAlert
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
+def resolve_sync_engine(engine_or_url: Engine | AsyncEngine | str) -> Engine:
+    """Normalize sync/async engines or database URLs into a synchronous SQLAlchemy Engine."""
+    if isinstance(engine_or_url, Engine) and not isinstance(engine_or_url, AsyncEngine):
+        return engine_or_url
+    if isinstance(engine_or_url, AsyncEngine):
+        url = str(engine_or_url.url)
+    elif isinstance(engine_or_url, str):
+        url = engine_or_url
+    else:
+        raise TypeError(f"Cannot resolve sync engine from {type(engine_or_url)}")
+
+    if "+aiosqlite" in url:
+        url = url.replace("+aiosqlite", "")
+    elif "+asyncpg" in url:
+        url = url.replace("+asyncpg", "")
+
+    options: dict[str, Any] = {"pool_pre_ping": True}
+    if url in ("sqlite+pysqlite:///:memory:", "sqlite:///:memory:"):
+        options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
+    elif url.startswith("sqlite"):
+        options.update({"connect_args": {"check_same_thread": False}})
+    return create_engine(url, **options)
+
+
+class _SessionWrapper:
+    """Adapts a single Session instance so it can be called and begun like a sessionmaker."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    @contextmanager
+    def __call__(self) -> Generator[Session, None, None]:
+        yield self._session
+
+    @contextmanager
+    def begin(self) -> Generator[Session, None, None]:
+        if self._session.in_transaction():
+            with self._session.begin_nested():
+                yield self._session
+        else:
+            with self._session.begin():
+                yield self._session
+
+
+def normalize_sessions(sessions: Any) -> Any:
+    """Normalize sessionmaker, Session, async_sessionmaker, AsyncSession, Engine, or AsyncEngine."""
+    if isinstance(sessions, AsyncEngine):
+        sync_e = resolve_sync_engine(sessions)
+        return sessionmaker(sync_e, expire_on_commit=False)
+    if isinstance(sessions, Engine):
+        return sessionmaker(sessions, expire_on_commit=False)
+    if isinstance(sessions, async_sessionmaker):
+        bind = sessions.kw.get("bind")
+        if bind is not None:
+            sync_e = resolve_sync_engine(bind)
+            return sessionmaker(sync_e, expire_on_commit=False)
+    if isinstance(sessions, AsyncSession):
+        bind = sessions.bind
+        if bind is not None:
+            sync_e = resolve_sync_engine(bind)
+            return sessionmaker(sync_e, expire_on_commit=False)
+    if isinstance(sessions, Session):
+        return _SessionWrapper(sessions)
+    return sessions
+
+
 class _JsonRepository:
-    def __init__(self, sessions: sessionmaker[Session], record_type: str, model: type[ModelT]):
-        self._sessions = sessions
+    def __init__(self, sessions: Any, record_type: str, model: type[ModelT]):
+        self._sessions = normalize_sessions(sessions)
         self._record_type = record_type
         self._model = model
 
-    def _save(self, record_id: str, user_id: str, value: ModelT, secondary: str | None = None, metadata: str | None = None) -> None:
+    @contextmanager
+    def _session_scope(self) -> Generator[Session, None, None]:
+        with self._sessions() as session:
+            yield session
+
+    @contextmanager
+    def _begin_scope(self) -> Generator[Session, None, None]:
         with self._sessions.begin() as session:
+            yield session
+
+    def _save(self, record_id: str, user_id: str, value: ModelT, secondary: str | None = None, metadata: str | None = None) -> None:
+        with self._begin_scope() as session:
             row = session.scalar(select(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.record_id == record_id,
@@ -44,7 +123,7 @@ class _JsonRepository:
             row.updated_at = datetime.now(timezone.utc)
 
     def _get(self, record_id: str) -> ModelT | None:
-        with self._sessions() as session:
+        with self._session_scope() as session:
             row = session.scalar(select(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.record_id == record_id,
@@ -52,7 +131,7 @@ class _JsonRepository:
             return self._model.model_validate_json(row.payload) if row else None
 
     def _get_row_by_secondary(self, user_id: str, secondary: str) -> Member3GuardianRecord | None:
-        with self._sessions() as session:
+        with self._session_scope() as session:
             return session.scalar(select(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.user_id == user_id,
@@ -60,21 +139,21 @@ class _JsonRepository:
             ))
 
     def _list_rows(self, user_id: str) -> list[Member3GuardianRecord]:
-        with self._sessions() as session:
+        with self._session_scope() as session:
             return list(session.scalars(select(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.user_id == user_id,
             ).order_by(Member3GuardianRecord.updated_at.desc(), Member3GuardianRecord.record_id.desc())))
 
     def _delete(self, record_id: str) -> None:
-        with self._sessions.begin() as session:
+        with self._begin_scope() as session:
             session.execute(delete(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.record_id == record_id,
             ))
 
     def delete_for_user(self, user_id: str) -> int:
-        with self._sessions.begin() as session:
+        with self._begin_scope() as session:
             result = session.execute(delete(Member3GuardianRecord).where(
                 Member3GuardianRecord.record_type == self._record_type,
                 Member3GuardianRecord.user_id == user_id,
@@ -86,7 +165,7 @@ class _JsonRepository:
 
 
 class SqlInsightRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]): super().__init__(sessions, "insight", InsightRecord)
+    def __init__(self, sessions: Any): super().__init__(sessions, "insight", InsightRecord)
     def save(self, record: InsightRecord): self._save(record.insight_id, record.user_id, record, record.source_event_id)
     def get(self, insight_id: str): return self._get(insight_id)
     def get_by_source(self, user_id: str, source_event_id: str):
@@ -96,7 +175,7 @@ class SqlInsightRepository(_JsonRepository):
 
 
 class SqlEmergencyRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]): super().__init__(sessions, "emergency", EmergencyWorkflowRecord)
+    def __init__(self, sessions: Any): super().__init__(sessions, "emergency", EmergencyWorkflowRecord)
     def save(self, record: EmergencyWorkflowRecord): self._save(record.workflow_id, record.user_id, record, record.alert_id)
     def get(self, workflow_id: str): return self._get(workflow_id)
     def get_by_alert(self, user_id: str, alert_id: str):
@@ -106,7 +185,7 @@ class SqlEmergencyRepository(_JsonRepository):
 
 
 class SqlNotificationRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]): super().__init__(sessions, "notification", NotificationRecord)
+    def __init__(self, sessions: Any): super().__init__(sessions, "notification", NotificationRecord)
     @staticmethod
     def _key(source_event_id: str, channel: NotificationChannel) -> str: return f"{source_event_id}|{channel.value}"
     def save(self, record: NotificationRecord): self._save(record.notification_id, record.user_id, record, self._key(record.source_event_id, record.channel))
@@ -118,7 +197,7 @@ class SqlNotificationRepository(_JsonRepository):
 
 
 class SqlConversationRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]): super().__init__(sessions, "conversation", ConversationRecord)
+    def __init__(self, sessions: Any): super().__init__(sessions, "conversation", ConversationRecord)
     def save(self, record: ConversationRecord): self._save(record.conversation_id, record.user_id, record)
     def get(self, conversation_id: str): return self._get(conversation_id)
     def get_by_message(self, user_id: str, message_id: str):
@@ -128,10 +207,10 @@ class SqlConversationRepository(_JsonRepository):
 
 
 class SqlAlertRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]): super().__init__(sessions, "alert", AlertRecord)
+    def __init__(self, sessions: Any): super().__init__(sessions, "alert", AlertRecord)
     def save(self, stored: _StoredAlert): self._save(stored.record.alert_id, stored.record.user_id, stored.record, stored.record.event_id, stored.fingerprint)
     def get(self, alert_id: str):
-        with self._sessions() as session:
+        with self._session_scope() as session:
             row = session.scalar(select(Member3GuardianRecord).where(Member3GuardianRecord.record_type == self._record_type, Member3GuardianRecord.record_id == alert_id))
             return _StoredAlert(AlertRecord.model_validate_json(row.payload), row.metadata_value or "") if row else None
     def get_by_event(self, user_id: str, event_id: str):
@@ -142,7 +221,7 @@ class SqlAlertRepository(_JsonRepository):
 
 
 class SqlCaregiverRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]):
+    def __init__(self, sessions: Any):
         super().__init__(sessions, "caregiver", CaregiverLink)
 
     def save(self, link: CaregiverLink) -> None:
@@ -160,7 +239,7 @@ class SqlCaregiverRepository(_JsonRepository):
 
 
 class SqlGuardianOrchestrationRepository(_JsonRepository):
-    def __init__(self, sessions: sessionmaker[Session]):
+    def __init__(self, sessions: Any):
         super().__init__(sessions, "orchestration", GuardianProcessResponse)
 
     def save(self, record: GuardianProcessResponse) -> None:

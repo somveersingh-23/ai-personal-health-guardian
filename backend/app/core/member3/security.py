@@ -16,7 +16,9 @@ class Member3Identity:
 
 
 def _decode(token: str) -> Member3Identity:
-    secret = os.environ.get("MEMBER3_JWT_SECRET", "")
+    # Shared M1/M2 names are canonical; MEMBER3_* aliases keep isolated demos usable.
+    shared_secret = os.environ.get("JWT_SECRET")
+    secret = shared_secret or os.environ.get("MEMBER3_JWT_SECRET", "")
     if len(secret) < 32:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Member 3 JWT secret is not configured")
     try:
@@ -24,16 +26,30 @@ def _decode(token: str) -> Member3Identity:
             token,
             secret,
             algorithms=["HS256"],
-            audience=os.environ.get("MEMBER3_JWT_AUDIENCE", "health-guardian-mobile"),
-            issuer=os.environ.get("MEMBER3_JWT_ISSUER", "health-guardian"),
-            options={"require": ["sub", "exp", "iat", "aud", "iss"]},
+            audience=(os.environ.get("JWT_AUDIENCE", "health-guardian-api") if shared_secret else
+                      os.environ.get("MEMBER3_JWT_AUDIENCE", "health-guardian-mobile")),
+            issuer=(os.environ.get("JWT_ISSUER", "ai-personal-health-guardian") if shared_secret else
+                    os.environ.get("MEMBER3_JWT_ISSUER", "health-guardian")),
+            options={"require": (["sub", "exp", "iat", "nbf", "aud", "iss"] if shared_secret else
+                                  ["sub", "exp", "iat", "aud", "iss"])},
         )
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired access token") from exc
-    user_id = str(claims.get("sub", "")).strip()
-    if not user_id:
+    subject = str(claims.get("sub", "")).strip()
+    if not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access token has no subject")
-    return Member3Identity(user_id)
+    if shared_secret:
+        try:
+            numeric_user_id = int(subject)
+            if numeric_user_id <= 0:
+                raise ValueError
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Access token subject must be a positive user ID",
+            ) from exc
+        subject = str(numeric_user_id)
+    return Member3Identity(subject)
 
 
 async def require_member3_identity(request: Request) -> Member3Identity:

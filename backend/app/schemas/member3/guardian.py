@@ -37,7 +37,7 @@ class GuardianProcessRequest(BaseModel):
     deviation_score: float = Field(ge=0)
     confidence: float
     signal_quality: float
-    evidence: Annotated[list[EvidenceItem], Field(min_length=1, max_length=25)]
+    evidence: Annotated[list[EvidenceItem], Field(max_length=50)]
     critical_flags: list[str] = Field(default_factory=list, max_length=25)
     user_confirmed_severe_symptoms: bool = False
     occurred_at: datetime
@@ -49,6 +49,11 @@ class GuardianProcessRequest(BaseModel):
     )
     channel_targets: dict[NotificationChannel, str] = Field(default_factory=dict)
     caregiver_contact_id: str | None = Field(default=None, max_length=128)
+    source_schema_version: str | None = Field(default=None, max_length=16)
+    upstream_abstained: bool = False
+    abstention_reasons: list[str] = Field(default_factory=list, max_length=32)
+    missing_baselines: list[str] = Field(default_factory=list, max_length=20)
+    non_diagnostic: bool = True
 
     @field_validator("user_id", "event_id", "insight_type", mode="before")
     @classmethod

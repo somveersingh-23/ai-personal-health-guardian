@@ -34,10 +34,15 @@ class CaregiverTests(unittest.TestCase):
         with self.assertRaises(InvalidCaregiverTransitionError):
             self.service.decide(self.create().link_id, CaregiverDecisionRequest(decision="revoke", actor_user_ref="u1"))
     def test_self_link_rejected(self):
-        with self.assertRaises(ValueError): self.service.create(CaregiverLinkCreate(user_id="u", caregiver_user_ref="u", relationship_label="Self"))
-    def test_idempotent_pending_link(self): self.assertEqual(self.create().link_id, self.create().link_id)
+        with self.assertRaises(ValueError):
+            self.service.create(CaregiverLinkCreate(user_id="u", caregiver_user_ref="u", relationship_label="Self"))
+
+    def test_idempotent_pending_link(self):
+        self.assertEqual(self.create().link_id, self.create().link_id)
+
     def test_list_user_scoped(self):
-        self.create(); self.service.create(CaregiverLinkCreate(user_id="u2", caregiver_user_ref="c2", relationship_label="Friend"))
+        self.create()
+        self.service.create(CaregiverLinkCreate(user_id="u2", caregiver_user_ref="c2", relationship_label="Friend"))
         self.assertEqual(self.service.list_for_user("u1").count, 1)
     def test_emergency_keeps_only_active_caregiver_reference(self):
         link = self.create()
@@ -51,7 +56,11 @@ class CaregiverTests(unittest.TestCase):
 
 class CaregiverApiTests(unittest.TestCase):
     def setUp(self):
-        app=FastAPI(); app.include_router(router); service=CaregiverService(); app.dependency_overrides[get_caregiver_service]=lambda:service; self.client=TestClient(app)
+        app = FastAPI()
+        app.include_router(router)
+        service = CaregiverService()
+        app.dependency_overrides[get_caregiver_service] = lambda: service
+        self.client = TestClient(app)
     def test_create_accept_list(self):
         created=self.client.post("/api/v1/member3/caregivers",json={"user_id":"u1","caregiver_user_ref":"c1","relationship_label":"Family"})
         lid=created.json()["link_id"]
@@ -62,4 +71,5 @@ class CaregiverApiTests(unittest.TestCase):
         lid=self.client.post("/api/v1/member3/caregivers",json={"user_id":"u1","caregiver_user_ref":"c1","relationship_label":"Family"}).json()["link_id"]
         self.assertEqual(self.client.post(f"/api/v1/member3/caregivers/{lid}/decisions",json={"decision":"accept","actor_user_ref":"x"}).status_code,403)
 
-if __name__ == "__main__": unittest.main()
+if __name__ == "__main__":
+    unittest.main()

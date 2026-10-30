@@ -42,7 +42,7 @@ class InsightCreateRequest(BaseModel):
     insight_type: Annotated[str, Field(min_length=1, max_length=64)]
     safety_action: SafetyAction
     safety_reason: Annotated[str, Field(min_length=1, max_length=1000)]
-    evidence: Annotated[list[EvidenceItem], Field(min_length=1, max_length=25)]
+    evidence: Annotated[list[EvidenceItem], Field(max_length=50)]
 
     @field_validator(
         "user_id", "source_event_id", "insight_type", "safety_reason", mode="before"

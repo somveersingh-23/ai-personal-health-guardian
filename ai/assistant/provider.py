@@ -17,12 +17,13 @@ class EvidenceSummary:
     """A single evidence item in a format safe to pass to a provider."""
 
     metric: str
-    current_value: float
-    baseline_value: float
-    unit: str
+    current_value: float | None
+    baseline_value: float | None
+    unit: str | None
     direction: str
     confidence: float
     signal_quality: float
+    standardized_deviation: float | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,8 @@ class StructuredPromptContext:
     has_low_confidence: bool = False
     has_low_quality: bool = False
     limitations: tuple[str, ...] = field(default_factory=tuple)
+    reference_passages: tuple[tuple[str, str, str], ...] = field(default_factory=tuple)
+    citations: tuple[str, ...] = field(default_factory=tuple)
 
 
 @runtime_checkable

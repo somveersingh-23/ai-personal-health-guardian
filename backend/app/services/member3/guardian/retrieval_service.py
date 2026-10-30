@@ -1,6 +1,6 @@
 """Retrieval service for the Member 3 RAG pipeline.
 
-Bridges the API layer to the local keyword retriever.
+Bridges the API layer to the local keyword retriever and ingestion pipeline.
 Enforces passage-length and total-context limits.
 Never changes the incoming safety action.
 Never exposes absolute filesystem paths or stack traces.
@@ -12,9 +12,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
+from ai.rag.ingestion import (
+    IngestionError,
+    MedicalDocumentIngestor,
+    delete_document_from_jsonl,
+)
 from ai.rag.loader import KnowledgeBaseLoader, LoaderError
 from ai.rag.retriever import LocalKeywordRetriever, RetrievalRecord
-from app.schemas.member3.rag import RetrievalRequest, RetrievalResponse, RetrievalResult
+from app.schemas.member3.rag import (
+    DocumentDeleteResponse,
+    DocumentIngestResponse,
+    DocumentIngestTextRequest,
+    IngestedChunkInfo,
+    RetrievalRequest,
+    RetrievalResponse,
+    RetrievalResult,
+)
 
 # Safety limits
 _MAX_PASSAGE_CHARS = 800
@@ -43,13 +56,19 @@ class InvalidRetrievalRequestError(RetrievalServiceError):
 class RetrievalFailureError(RetrievalServiceError):
     """Raised when retrieval fails unexpectedly."""
 
+class DocumentIngestionError(RetrievalServiceError):
+    """Raised when document ingestion fails."""
+
+class DocumentDeletionError(RetrievalServiceError):
+    """Raised when document deletion fails."""
+
 
 # ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
 
 class RetrievalService:
-    """Orchestrate knowledge-base loading and retrieval.
+    """Orchestrate knowledge-base loading, retrieval, ingestion, and reindexing.
 
     Parameters
     ----------
@@ -98,6 +117,15 @@ class RetrievalService:
             self._retriever = LocalKeywordRetriever(chunks)
         return self._retriever
 
+    def reindex(self) -> int:
+        """Clear cached retriever and reload all chunks from storage.
+
+        Returns the number of approved, usable chunks indexed.
+        """
+        self._retriever = None
+        retriever = self._get_retriever()
+        return len(retriever._chunks)
+
     def retrieve(self, request: RetrievalRequest) -> RetrievalResponse:
         """Run retrieval and return structured results.
 
@@ -131,6 +159,98 @@ class RetrievalService:
             result_count=len(results),
             limitations=limitations,
             generated_at=datetime.now(tz=timezone.utc),
+        )
+
+    def ingest_text(
+        self,
+        request: DocumentIngestTextRequest,
+        kb_path: Optional[str | Path] = None,
+    ) -> DocumentIngestResponse:
+        """Ingest document text into the knowledge base, then re-index retriever."""
+        target_path = Path(kb_path) if kb_path is not None else Path(self._kb_paths[0])
+        try:
+            ingestor = MedicalDocumentIngestor(
+                kb_path=target_path,
+                chunk_size=request.chunk_size,
+                chunk_overlap=request.chunk_overlap,
+                min_chunk_size=request.min_chunk_size,
+            )
+            ingested_doc = ingestor.ingest_text(
+                text=request.text,
+                document_id=request.document_id,
+                title=request.title,
+                topic=request.topic,
+                source_name=request.source_name,
+                source_url=request.source_url,
+                language=request.language,
+                version=request.version,
+                safety_tags=tuple(request.safety_tags) if request.safety_tags else None,
+                keywords=tuple(request.keywords) if request.keywords else None,
+            )
+            # Reindex retriever so chunks are immediately accessible
+            self.reindex()
+        except (ValueError, IngestionError) as exc:
+            raise DocumentIngestionError(str(exc)) from exc
+        except Exception as exc:
+            raise DocumentIngestionError(
+                "Failed to ingest document text due to an unexpected error."
+            ) from exc
+
+        chunk_summaries = [
+            IngestedChunkInfo(
+                chunk_id=c.chunk.chunk_id,
+                document_id=c.chunk.document_id,
+                title=c.chunk.title,
+                content_hash=c.content_hash,
+                char_count=c.char_count,
+                keywords=list(c.chunk.keywords),
+                topic=c.chunk.topic,
+            )
+            for c in ingested_doc.chunks
+        ]
+
+        return DocumentIngestResponse(
+            document_id=ingested_doc.document_id,
+            title=ingested_doc.title,
+            chunks_created=len(ingested_doc.chunks),
+            chunks=chunk_summaries,
+            injection_detected=ingested_doc.injection_detected,
+            sanitized=ingested_doc.sanitized,
+            total_chars=ingested_doc.total_chars,
+            reindexed=True,
+            created_at=datetime.now(tz=timezone.utc),
+        )
+
+    def delete_document(
+        self,
+        document_id: str,
+        kb_path: Optional[str | Path] = None,
+    ) -> DocumentDeleteResponse:
+        """Delete all chunks for a document_id and re-index the retriever."""
+        target_id = document_id.strip()
+        if not target_id:
+            raise ValueError("document_id must not be empty or whitespace-only")
+
+        try:
+            if kb_path is not None:
+                deleted_count = delete_document_from_jsonl(Path(kb_path), target_id)
+            else:
+                deleted_count = 0
+                for path in self._kb_paths:
+                    deleted_count += delete_document_from_jsonl(Path(path), target_id)
+
+            # Reindex retriever
+            self.reindex()
+        except Exception as exc:
+            raise DocumentDeletionError(
+                f"Failed to delete document '{target_id}'."
+            ) from exc
+
+        return DocumentDeleteResponse(
+            document_id=target_id,
+            chunks_deleted=deleted_count,
+            reindexed=True,
+            deleted_at=datetime.now(tz=timezone.utc),
         )
 
     def _build_results(

@@ -107,7 +107,8 @@ def build_service_container() -> Member3ServiceContainer:
         InMemoryEmergencyRepository(),
         caregiver_validator=caregivers.is_active,
     )
-    explanation = ExplanationService()
+    retrieval = get_retrieval_service()
+    explanation = ExplanationService(retrieval_service=retrieval)
     conversations = ConversationService(
         explanation_service=explanation,
         repository=InMemoryConversationRepository(),
@@ -124,7 +125,7 @@ def build_service_container() -> Member3ServiceContainer:
     )
     return Member3ServiceContainer(
         explanation=explanation,
-        retrieval=get_retrieval_service(),
+        retrieval=retrieval,
         insights=insights,
         alerts=alerts,
         notifications=notifications,

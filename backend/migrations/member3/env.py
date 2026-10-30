@@ -11,7 +11,7 @@ backend_path = Path(__file__).resolve().parents[2]
 if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
 
-from app.models.member3.guardian_record import Member3Base
+from app.models.member3.guardian_record import Member3Base  # noqa: E402
 
 config = context.config
 

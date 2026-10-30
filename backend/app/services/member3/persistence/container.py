@@ -1,8 +1,8 @@
 import os
 
-from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.orm import sessionmaker
 
 from app.api.member3.app import Member3ServiceContainer
 from app.api.member3.rag import get_retrieval_service
@@ -22,22 +22,28 @@ from app.services.member3.persistence.repositories import (
     SqlAlertRepository, SqlCaregiverRepository, SqlConversationRepository,
     SqlEmergencyRepository, SqlGuardianOrchestrationRepository,
     SqlInsightRepository, SqlNotificationRepository,
+    resolve_sync_engine,
 )
 
 
 def create_member3_engine(database_url: str) -> Engine:
-    options = {"pool_pre_ping": True}
-    if database_url == "sqlite+pysqlite:///:memory:":
-        options.update({"connect_args": {"check_same_thread": False}, "poolclass": StaticPool})
-    return create_engine(database_url, **options)
+    """Create a synchronous SQLAlchemy Engine for Member 3 persistence."""
+    return resolve_sync_engine(database_url)
 
 
-def build_persistent_container(engine: Engine, *, create_schema: bool = False) -> Member3ServiceContainer:
+def build_persistent_container(
+    engine: Engine | AsyncEngine | str,
+    *,
+    create_schema: bool = False,
+) -> Member3ServiceContainer:
+    """Construct a full Member 3 service container backed by durable database tables."""
+    sync_engine = resolve_sync_engine(engine)
     if create_schema:
-        Member3Base.metadata.create_all(engine)
-    sessions = sessionmaker(engine, expire_on_commit=False)
+        Member3Base.metadata.create_all(sync_engine)
+    sessions = sessionmaker(sync_engine, expire_on_commit=False)
     provider = OpenAIResponsesProvider() if os.environ.get("MEMBER3_ASSISTANT_PROVIDER") == "openai" else None
-    explanation = ExplanationService(provider=provider)
+    retrieval = get_retrieval_service()
+    explanation = ExplanationService(provider=provider, retrieval_service=retrieval)
     insights = InsightService(SqlInsightRepository(sessions))
     alerts = AlertService(SqlAlertRepository(sessions))
     notifications = NotificationService(SqlNotificationRepository(sessions))
@@ -55,7 +61,7 @@ def build_persistent_container(engine: Engine, *, create_schema: bool = False) -
         caregivers=caregivers,
     )
     return Member3ServiceContainer(
-        explanation=explanation, retrieval=get_retrieval_service(), insights=insights,
+        explanation=explanation, retrieval=retrieval, insights=insights,
         alerts=alerts, notifications=notifications, emergency=emergency,
         conversations=conversations, data_controls=data_controls,
         safety=SafetyEvaluationService(), caregivers=caregivers, guardian=guardian,

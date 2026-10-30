@@ -10,6 +10,8 @@ sealed interface LoadState<out T> {
     data object Idle : LoadState<Nothing>
     data object Loading : LoadState<Nothing>
     data class Ready<T>(val value: T) : LoadState<T>
-    data class Offline(val cached: Boolean, val message: String) : LoadState<Nothing>
+    data class Offline<T>(val cachedValue: T?, val message: String) : LoadState<T> {
+        val cached: Boolean get() = cachedValue != null
+    }
     data class Error(val message: String) : LoadState<Nothing>
 }

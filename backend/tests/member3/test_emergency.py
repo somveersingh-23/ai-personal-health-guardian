@@ -1,6 +1,5 @@
 """Offline tests for the Member 3 emergency-workflow prototype."""
 
-from datetime import datetime, timezone
 import unittest
 
 from fastapi import FastAPI

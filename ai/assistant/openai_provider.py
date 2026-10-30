@@ -38,6 +38,8 @@ class OpenAIResponsesProvider:
                 "safety_reason": context.safety_reason,
                 "evidence": evidence,
                 "limitations": context.limitations,
+                "reference_passages": context.reference_passages,
+                "citations": context.citations,
                 "locale": context.locale,
                 "user_question": context.user_question,
             }, separators=(",", ":")),

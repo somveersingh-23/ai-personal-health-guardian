@@ -14,7 +14,13 @@ import com.healthguardian.member3.data.LoadState
 fun AlertsScreen(state: LoadState<List<GuardianAlert>>, retry: () -> Unit) {
     when (state) {
         LoadState.Idle, LoadState.Loading -> CircularProgressIndicator(Modifier.padding(24.dp))
-        is LoadState.Offline -> StatusPanel("You're offline", if (state.cached) "Showing saved alerts." else state.message, retry)
+        is LoadState.Offline -> if (state.cachedValue != null) {
+            LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text("Offline — showing saved alerts", style = MaterialTheme.typography.titleMedium) }
+                items(state.cachedValue, key = { it.id }) { AlertCard(it) }
+                item { Button(onClick = retry) { Text("Try again") } }
+            }
+        } else StatusPanel("You're offline", state.message, retry)
         is LoadState.Error -> StatusPanel("Alerts unavailable", state.message, retry)
         is LoadState.Ready -> LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Alerts and history", style = MaterialTheme.typography.headlineSmall) }

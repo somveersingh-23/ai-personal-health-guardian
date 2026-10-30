@@ -1,6 +1,7 @@
 package com.healthguardian.member3
 
 import com.healthguardian.member3.data.InMemorySessionManager
+import com.healthguardian.member3.data.SharedAuthSessionAdapter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -41,6 +42,22 @@ class SessionManagerTest {
 
         assertEquals("", manager.currentUserId)
         assertNull(manager.token)
+        assertFalse(manager.isAuthenticated)
+    }
+
+    @Test
+    fun sharedAuthAdapterReadsM1OwnedSessionWithoutCopyingTokenState() {
+        var userId = "42"
+        var token: String? = "shared-jwt"
+        val manager = SharedAuthSessionAdapter(
+            userIdProvider = { userId },
+            accessTokenProvider = { token },
+            sessionClearer = { userId = ""; token = null },
+        )
+
+        assertTrue(manager.isAuthenticated)
+        assertEquals("42", manager.currentUserId)
+        manager.clearSession()
         assertFalse(manager.isAuthenticated)
     }
 }

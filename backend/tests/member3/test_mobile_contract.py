@@ -35,3 +35,11 @@ def test_mobile_ui_exposes_loading_offline_and_retry_states():
     assert "LoadState.Offline" in sources
     assert "Try again" in sources
     assert "never calls emergency services automatically" in sources
+
+
+def test_mobile_has_shared_auth_seam_and_durable_app_private_cache():
+    sources = "\n".join(path.read_text(encoding="utf-8") for path in MOBILE.rglob("*.kt"))
+    assert "class SharedAuthSessionAdapter" in sources
+    assert "class PreferencesGuardianCache" in sources
+    assert "Member3Feature" in sources
+    assert "cachedValue" in sources

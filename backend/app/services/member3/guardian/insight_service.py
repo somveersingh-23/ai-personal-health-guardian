@@ -171,11 +171,20 @@ class InsightService:
 
     @staticmethod
     def _summary(request: InsightCreateRequest) -> str:
-        descriptions = [
-            f"{item.metric}: {item.direction} "
-            f"({item.current_value:g} {item.unit}; baseline {item.baseline_value:g} {item.unit})"
-            for item in request.evidence
-        ]
+        descriptions = []
+        for item in request.evidence:
+            if item.current_value is not None:
+                descriptions.append(
+                    f"{item.metric}: {item.direction} "
+                    f"({item.current_value:g} {item.unit}; baseline {item.baseline_value:g} {item.unit})"
+                )
+            else:
+                descriptions.append(
+                    f"{item.metric}: {item.direction} "
+                    f"(standardized deviation {item.standardized_deviation:+g})"
+                )
+        if not descriptions:
+            return f"{request.safety_reason}. No usable measurements were supplied."
         return f"{request.safety_reason}. Evidence: " + "; ".join(descriptions) + "."
 
     @staticmethod

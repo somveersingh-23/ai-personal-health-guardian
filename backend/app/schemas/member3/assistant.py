@@ -90,9 +90,12 @@ class EvidenceItem(BaseModel):
     """
 
     metric: Annotated[str, Field(min_length=1, description="Name of the health metric")]
-    current_value: float = Field(description="Most recent observed value")
-    baseline_value: float = Field(description="User's normal / baseline value")
-    unit: Annotated[str, Field(min_length=1, description="Unit of measurement, e.g. 'bpm'")]
+    current_value: Optional[float] = Field(default=None, description="Most recent observed value")
+    baseline_value: Optional[float] = Field(default=None, description="User's normal / baseline value")
+    unit: Optional[Annotated[str, Field(min_length=1, description="Unit of measurement, e.g. 'bpm'")]] = None
+    standardized_deviation: Optional[float] = Field(
+        default=None, description="Signed Member 2 standardized deviation"
+    )
     direction: Annotated[str, Field(min_length=1, description="Trend, e.g. 'elevated', 'decreased'")]
     confidence: float = Field(description="Model confidence in [0, 1]")
     signal_quality: float = Field(description="Sensor signal quality in [0, 1]")
@@ -100,16 +103,23 @@ class EvidenceItem(BaseModel):
 
     # -- String validators ---------------------------------------------------
 
-    @field_validator("metric", "unit", "direction", mode="before")
+    @field_validator("metric", "direction", mode="before")
     @classmethod
     def _strip_and_reject_blank_string_fields(cls, value: str, info) -> str:  # noqa: ANN001
         return _nonempty_str(info.field_name)(value)
 
+    @field_validator("unit", mode="before")
+    @classmethod
+    def _strip_optional_unit(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else _nonempty_str("unit")(value)
+
     # -- Numeric validators --------------------------------------------------
 
-    @field_validator("current_value", "baseline_value", mode="before")
+    @field_validator("current_value", "baseline_value", "standardized_deviation", mode="before")
     @classmethod
     def _validate_finite_float(cls, value: float) -> float:
+        if value is None:
+            return None
         if isinstance(value, bool):
             raise ValueError("value must be a finite number")
         if not isinstance(value, (int, float)):
@@ -117,6 +127,15 @@ class EvidenceItem(BaseModel):
         if not math.isfinite(float(value)):
             raise ValueError("value must be a finite number")
         return float(value)
+
+    @model_validator(mode="after")
+    def _require_one_supported_representation(self) -> "EvidenceItem":
+        raw = (self.current_value, self.baseline_value, self.unit)
+        if any(value is not None for value in raw) and not all(value is not None for value in raw):
+            raise ValueError("current_value, baseline_value, and unit must be supplied together")
+        if not all(value is not None for value in raw) and self.standardized_deviation is None:
+            raise ValueError("raw values or standardized_deviation must be supplied")
+        return self
 
     @field_validator("confidence", mode="before")
     @classmethod

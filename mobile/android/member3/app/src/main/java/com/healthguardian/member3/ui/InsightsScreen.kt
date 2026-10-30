@@ -14,7 +14,13 @@ import com.healthguardian.member3.data.LoadState
 fun InsightsScreen(state: LoadState<List<HealthInsight>>, retry: () -> Unit) {
     when (state) {
         LoadState.Idle, LoadState.Loading -> Box(Modifier.fillMaxSize()) { CircularProgressIndicator(Modifier.padding(24.dp)) }
-        is LoadState.Offline -> StatusPanel("You're offline", if (state.cached) "Showing the last saved insights." else state.message, retry)
+        is LoadState.Offline -> if (state.cachedValue != null) {
+            LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Text("Offline — showing saved insights", style = MaterialTheme.typography.titleMedium) }
+                items(state.cachedValue, key = { it.id }) { InsightCard(it) }
+                item { Button(onClick = retry) { Text("Try again") } }
+            }
+        } else StatusPanel("You're offline", state.message, retry)
         is LoadState.Error -> StatusPanel("Insights unavailable", state.message, retry)
         is LoadState.Ready -> LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Health insights", style = MaterialTheme.typography.headlineSmall) }

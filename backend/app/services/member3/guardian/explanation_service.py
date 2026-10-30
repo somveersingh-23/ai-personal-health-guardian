@@ -23,6 +23,9 @@ from ai.assistant.provider import AssistantProvider, EvidenceSummary, Structured
 from ai.assistant.template_provider import TemplateProvider
 from ai.prompts.sanitize import sanitize_user_question
 from app.schemas.member3.assistant import EvidenceItem, ExplainRequest, ExplainResponse
+from app.schemas.member3.rag import RetrievalRequest
+from app.services.member3.guardian.rag_context_builder import RagContextBuilder
+from app.services.member3.guardian.retrieval_service import RetrievalService, RetrievalServiceError
 from ml.safety import SafetyAction
 
 # ---------------------------------------------------------------------------
@@ -69,8 +72,13 @@ class ExplanationService:
         external API key.
     """
 
-    def __init__(self, provider: Optional[AssistantProvider] = None) -> None:
+    def __init__(
+        self,
+        provider: Optional[AssistantProvider] = None,
+        retrieval_service: RetrievalService | None = None,
+    ) -> None:
         self._provider: AssistantProvider = provider if provider is not None else TemplateProvider()
+        self._retrieval = retrieval_service
 
     # ------------------------------------------------------------------
     # Public API
@@ -109,11 +117,31 @@ class ExplanationService:
             )
 
         limitations = self._build_limitations(normalised_evidence, request.safety_action)
+        rag_passages: tuple[tuple[str, str, str], ...] = ()
+        citations: tuple[str, ...] = ()
+        if self._retrieval is not None:
+            try:
+                retrieved = self._retrieval.retrieve(
+                    RetrievalRequest(question=request.question, locale=request.locale, top_k=3)
+                )
+                rag = RagContextBuilder().build(
+                    safety_action=request.safety_action,
+                    safety_reason=request.safety_reason,
+                    results=retrieved.results,
+                    limitations=retrieved.limitations,
+                )
+                rag_passages = rag.passages
+                citations = rag.citations
+                limitations = tuple(dict.fromkeys((*limitations, *rag.limitations)))
+            except RetrievalServiceError:
+                limitations = (*limitations, "Educational references were unavailable for this response.")
 
         context = self._build_context(
             request=request,
             normalised_evidence=normalised_evidence,
             limitations=limitations,
+            rag_passages=rag_passages,
+            citations=citations,
         )
 
         answer = self._call_provider(context)
@@ -188,6 +216,8 @@ class ExplanationService:
         request: ExplainRequest,
         normalised_evidence: list[EvidenceItem],
         limitations: tuple[str, ...],
+        rag_passages: tuple[tuple[str, str, str], ...] = (),
+        citations: tuple[str, ...] = (),
     ) -> StructuredPromptContext:
         """Build the immutable provider context from the validated request."""
         evidence_summaries = tuple(
@@ -196,6 +226,7 @@ class ExplanationService:
                 current_value=item.current_value,
                 baseline_value=item.baseline_value,
                 unit=item.unit,
+                standardized_deviation=item.standardized_deviation,
                 direction=item.direction,
                 confidence=item.confidence,
                 signal_quality=item.signal_quality,
@@ -221,6 +252,8 @@ class ExplanationService:
             has_low_confidence=has_low_confidence,
             has_low_quality=has_low_quality,
             limitations=limitations,
+            reference_passages=rag_passages,
+            citations=citations,
         )
 
     def _call_provider(self, context: StructuredPromptContext) -> str:

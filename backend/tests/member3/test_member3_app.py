@@ -112,7 +112,7 @@ class Member3AppTests(unittest.TestCase):
             "/api/v1/member3/assistant/explain",
             json={
                 "user_id": "integration-user",
-                "question": "Why is recovery lower?",
+                "question": "Why can sleep affect recovery?",
                 "evidence": [{
                     "metric": "sleep",
                     "current_value": 5.5,
@@ -129,6 +129,7 @@ class Member3AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["safety_action"], "self_care")
         self.assertIn("not a medical diagnosis", response.json()["disclaimer"])
+        self.assertIn("Educational references used for context", response.json()["answer"])
 
     def test_openapi_contains_only_member3_business_paths(self):
         paths = self.client.get("/openapi.json").json()["paths"]

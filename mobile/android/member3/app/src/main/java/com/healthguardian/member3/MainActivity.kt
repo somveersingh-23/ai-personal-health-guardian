@@ -8,6 +8,7 @@ import androidx.compose.material3.lightColorScheme
 import com.healthguardian.member3.data.InMemorySessionManager
 import com.healthguardian.member3.data.Member3ApiClient
 import com.healthguardian.member3.data.Member3Repository
+import com.healthguardian.member3.data.PreferencesGuardianCache
 import com.healthguardian.member3.ui.GuardianApp
 
 class MainActivity : ComponentActivity() {
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
             sessionManager = sessionManager,
             allowEmulatorCleartext = BuildConfig.DEBUG,
         )
-        val repository = Member3Repository(apiClient)
+        val repository = Member3Repository(apiClient, PreferencesGuardianCache(this))
         setContent {
             MaterialTheme(colorScheme = lightColorScheme()) {
                 GuardianApp(repository, sessionManager)

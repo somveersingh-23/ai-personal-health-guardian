@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Callable
 
-from app.schemas.member3.alerts import AlertEvaluationRequest
+from app.schemas.member3.alerts import AlertEvaluationRequest, AlertEvaluationResponse
 from app.schemas.member3.emergency import EmergencyStartRequest
 from app.schemas.member3.guardian import (
     GuardianProcessRequest,
@@ -131,16 +131,26 @@ class GuardianOrchestrationService:
                 )
             )
 
-            alert = self._alerts.evaluate(
-                AlertEvaluationRequest(
-                    user_id=request.user_id,
-                    event_id=request.event_id,
-                    safety_action=decision.action,
-                    safety_reason=decision.reason,
-                    evidence=list(decision.evidence) or list(evidence_text),
-                    occurred_at=request.occurred_at,
+            if request.upstream_abstained and not request.user_confirmed_severe_symptoms:
+                alert = AlertEvaluationResponse(
+                    created=False,
+                    suppressed_reason="upstream_abstained_remeasurement_only",
                 )
-            )
+            else:
+                alert = self._alerts.evaluate(
+                    AlertEvaluationRequest(
+                        user_id=request.user_id,
+                        event_id=request.event_id,
+                        safety_action=decision.action,
+                        safety_reason=decision.reason,
+                        evidence=(
+                            list(decision.evidence)
+                            or list(evidence_text)
+                            or ["User-confirmed severe symptoms"]
+                        ),
+                        occurred_at=request.occurred_at,
+                    )
+                )
 
             notifications = None
             emergency = None

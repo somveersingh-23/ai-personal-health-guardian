@@ -97,7 +97,7 @@ class GuardianViewModel(
                 )
             } catch (error: IOException) {
                 _state.value = _state.value.copy(
-                    assistantState = LoadState.Offline(false, error.message ?: "Assistant unavailable"),
+                    assistantState = LoadState.Offline(null, error.message ?: "Assistant unavailable"),
                 )
             } catch (error: Exception) {
                 _state.value = _state.value.copy(
@@ -143,7 +143,7 @@ class GuardianViewModel(
                 _state.value = _state.value.copy(emergency = LoadState.Ready(workflow))
             } catch (error: IOException) {
                 _state.value = _state.value.copy(
-                    emergency = LoadState.Offline(false, error.message ?: "Emergency service offline"),
+                    emergency = LoadState.Offline(null, error.message ?: "Emergency service offline"),
                 )
             } catch (error: Exception) {
                 _state.value = _state.value.copy(
